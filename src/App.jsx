@@ -5,8 +5,8 @@ import { Settings as SettingsIcon, FitnessCenter, Timeline } from '@mui/icons-ma
 
 import theme from './theme';
 import Settings from './pages/Settings';
-import Workout from './pages/Workout';   // <--- Import Neu
-import Analysis from './pages/Analysis'; // <--- Import Neu
+import Workout from './pages/Workout';
+import Analysis from './pages/Analysis';
 
 export default function App() {
   const navigate = useNavigate();
@@ -24,31 +24,53 @@ export default function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       
-      <Box sx={{ pb: 7, minHeight: '100vh', bgcolor: 'background.default' }}>
-        <Routes>
-          <Route path="/" element={<Workout />} />
-          <Route path="/analysis" element={<Analysis />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Box>
-
-      <Paper sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1000 }} elevation={3}>
-        <BottomNavigation
-          showLabels
-          value={value}
-          onChange={(event, newValue) => {
-            setValue(newValue);
-            if (newValue === 0) navigate('/');
-            if (newValue === 1) navigate('/analysis');
-            if (newValue === 2) navigate('/settings');
+      {/* Container füllt exakt den Screen */}
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          height: '100dvh', // Dynamic Viewport Height für Mobile
+          overflow: 'hidden' 
+        }}
+      >
+        
+        {/* Scrollbarer Inhaltsbereich */}
+        <Box 
+          sx={{ 
+            flexGrow: 1, 
+            overflowY: 'auto', 
+            overflowX: 'hidden',
+            bgcolor: 'background.default',
+            pb: 1
           }}
         >
-          <BottomNavigationAction label="Training" icon={<FitnessCenter />} />
-          <BottomNavigationAction label="Analyse" icon={<Timeline />} />
-          <BottomNavigationAction label="Einstellungen" icon={<SettingsIcon />} />
-        </BottomNavigation>
-      </Paper>
+          <Routes>
+            <Route path="/" element={<Workout />} />
+            <Route path="/analysis" element={<Analysis />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Box>
+
+        {/* Fixierte Fußleiste */}
+        <Paper elevation={3} sx={{ zIndex: 1000, borderRadius: 0 }}>
+          <BottomNavigation
+            showLabels
+            value={value}
+            onChange={(event, newValue) => {
+              setValue(newValue);
+              if (newValue === 0) navigate('/');
+              if (newValue === 1) navigate('/analysis');
+              if (newValue === 2) navigate('/settings');
+            }}
+          >
+            <BottomNavigationAction label="Training" icon={<FitnessCenter />} />
+            <BottomNavigationAction label="Analyse" icon={<Timeline />} />
+            <BottomNavigationAction label="Einstellungen" icon={<SettingsIcon />} />
+          </BottomNavigation>
+        </Paper>
+      </Box>
+
     </ThemeProvider>
   );
 }
