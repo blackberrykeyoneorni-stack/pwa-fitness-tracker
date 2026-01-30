@@ -1,182 +1,179 @@
-import React, { useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, WEEKDAYS } from '../db';
-import { exportData } from '../utils/exportManager';
+import React, { useState, useEffect } from 'react';
 import {
-  Box, Typography, Tabs, Tab, List, ListItem, ListItemText,
-  IconButton, Fab, Dialog, DialogTitle, DialogContent,
-  DialogActions, Button, TextField, Select, MenuItem,
-  FormControl, InputLabel, Card, CardContent, Chip
+  Box,
+  Typography,
+  Paper,
+  TextField,
+  Button,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  OutlinedInput,
+  Chip,
+  Alert,
+  Snackbar,
+  Divider
 } from '@mui/material';
-import {
-  Add as AddIcon,
-  Delete as DeleteIcon,
-  Edit as EditIcon,
-  FileDownload as CsvIcon,
-  DataObject as JsonIcon
-} from '@mui/icons-material';
+import { db } from '../db';
+import { exportData, importData } from '../utils/exportManager';
 
-export default function Settings() {
-  const [currentTab, setCurrentTab] = useState(0);
-  const [openDialog, setOpenDialog] = useState(false);
-  const [editingId, setEditingId] = useState(null);
+const DAYS_OF_WEEK = [
+  'Montag',
+  'Dienstag',
+  'Mittwoch',
+  'Donnerstag',
+  'Freitag',
+  'Samstag',
+  'Sonntag'
+];
 
-  const [formData, setFormData] = useState({
-    name: '',
-    day: WEEKDAYS[0],
-    targetSets: 3,
-    targetReps: 10,
-    targetWeight: 0,
-    restTime: 60 // Standard: 60 Sekunden Pause
+const Settings = () => {
+  const [settings, setSettings] = useState({
+    userName: '',
+    trainingDays: [],
+    reminderTime: '18:00'
   });
+  const [status, setStatus] = useState({ open: false, message: '', severity: 'success' });
 
-  const exercises = useLiveQuery(() => db.exercises.toArray());
-  const currentDayName = WEEKDAYS[currentTab];
-  const daysExercises = exercises?.filter(ex => ex.day === currentDayName) || [];
-
-  const handleOpen = (exercise = null) => {
-    if (exercise) {
-      setEditingId(exercise.id);
-      setFormData({
-        name: exercise.name,
-        day: exercise.day,
-        targetSets: exercise.targetSets,
-        targetReps: exercise.targetReps,
-        targetWeight: exercise.targetWeight,
-        restTime: exercise.restTime || 60
-      });
-    } else {
-      setEditingId(null);
-      setFormData({
-        name: '',
-        day: currentDayName,
-        targetSets: 3,
-        targetReps: 10,
-        targetWeight: 0,
-        restTime: 60
-      });
-    }
-    setOpenDialog(true);
-  };
+  useEffect(() => {
+    const loadSettings = async () => {
+      const savedSettings = await db.settings.get('user_settings');
+      if (savedSettings) {
+        setSettings(savedSettings.value);
+      }
+    };
+    loadSettings();
+  }, []);
 
   const handleSave = async () => {
-    if (!formData.name) return;
-    const dataToSave = {
-        ...formData,
-        targetSets: Number(formData.targetSets),
-        targetReps: Number(formData.targetReps),
-        targetWeight: Number(formData.targetWeight),
-        restTime: Number(formData.restTime)
-    };
-
-    if (editingId) {
-      await db.exercises.update(editingId, dataToSave);
-    } else {
-      await db.exercises.add(dataToSave);
+    try {
+      await db.settings.put({ id: 'user_settings', value: settings });
+      setStatus({ open: true, message: 'Einstellungen gespeichert!', severity: 'success' });
+    } catch (error) {
+      setStatus({ open: true, message: 'Fehler beim Speichern', severity: 'error' });
     }
-    setOpenDialog(false);
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Übung wirklich löschen?')) {
-      await db.exercises.delete(id);
+  const handleDayChange = (event) => {
+    const {
+      target: { value },
+    } = event;
+    setSettings({
+      ...settings,
+      // Bei Multiple-Select ist value ein Array
+      trainingDays: typeof value === 'string' ? value.split(',') : value,
+    });
+  };
+
+  const handleExport = async () => {
+    const success = await exportData();
+    if (success) {
+      setStatus({ open: true, message: 'Daten erfolgreich exportiert!', severity: 'success' });
+    }
+  };
+
+  const handleImport = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const success = await importData(file);
+    if (success) {
+      setStatus({ open: true, message: 'Daten erfolgreich importiert!', severity: 'success' });
+      window.location.reload();
+    } else {
+      setStatus({ open: true, message: 'Fehler beim Importieren', severity: 'error' });
     }
   };
 
   return (
-    <Box sx={{ pb: 10 }}>
-      <Typography variant="h5" sx={{ mb: 2, px: 2, pt: 2, fontWeight: 'bold' }}>
+    <Box sx={{ p: 2, pb: 8 }}>
+      <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: 'primary.main' }}>
         Einstellungen
       </Typography>
 
-      {/* Export */}
-      <Card sx={{ mx: 2, mb: 3, borderRadius: 4, bgcolor: 'background.paper' }}>
-        <CardContent>
-          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            Datenverwaltung
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button variant="outlined" startIcon={<CsvIcon />} onClick={() => exportData('csv')} fullWidth>
-              CSV
-            </Button>
-            <Button variant="outlined" startIcon={<JsonIcon />} onClick={() => exportData('json')} fullWidth>
-              JSON
-            </Button>
-          </Box>
-        </CardContent>
-      </Card>
+      <Paper sx={{ p: 3, mb: 3, borderRadius: 3 }}>
+        <Typography variant="h6" gutterBottom>Profil</Typography>
+        <TextField
+          fullWidth
+          label="Name"
+          value={settings.userName}
+          onChange={(e) => setSettings({ ...settings, userName: e.target.value })}
+          margin="normal"
+        />
 
-      <Typography variant="h6" sx={{ px: 2, mb: 1 }}>Trainingsplan</Typography>
+        <Divider sx={{ my: 3 }} />
 
-      <Tabs
-        value={currentTab}
-        onChange={(e, v) => setCurrentTab(v)}
-        variant="scrollable"
-        scrollButtons="auto"
-        sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}
+        <Typography variant="h6" gutterBottom>Trainingstage</Typography>
+        <FormControl fullWidth margin="normal">
+          <InputLabel id="training-days-label">Wochentage</InputLabel>
+          <Select
+            labelId="training-days-label"
+            id="training-days-select"
+            multiple
+            value={settings.trainingDays}
+            onChange={handleDayChange}
+            input={<OutlinedInput label="Wochentage" />}
+            renderValue={(selected) => (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                {selected.map((value) => (
+                  <Chip key={value} label={value} color="primary" size="small" />
+                ))}
+              </Box>
+            )}
+          >
+            {DAYS_OF_WEEK.map((day) => (
+              <MenuItem key={day} value={day}>
+                {day}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <TextField
+          fullWidth
+          label="Erinnerungszeit"
+          type="time"
+          value={settings.reminderTime}
+          onChange={(e) => setSettings({ ...settings, reminderTime: e.target.value })}
+          margin="normal"
+          InputLabelProps={{ shrink: true }}
+        />
+
+        <Button
+          fullWidth
+          variant="contained"
+          onClick={handleSave}
+          sx={{ mt: 3, py: 1.5, borderRadius: 2 }}
+        >
+          Speichern
+        </Button>
+      </Paper>
+
+      <Paper sx={{ p: 3, borderRadius: 3 }}>
+        <Typography variant="h6" gutterBottom>Daten-Management</Typography>
+        <Box sx={{ display: 'flex', gap: 2, flexDirection: 'column' }}>
+          <Button variant="outlined" onClick={handleExport}>
+            Daten Exportieren (.json)
+          </Button>
+          <Button variant="outlined" component="label">
+            Daten Importieren
+            <input type="file" hidden accept=".json" onChange={handleImport} />
+          </Button>
+        </Box>
+      </Paper>
+
+      <Snackbar
+        open={status.open}
+        autoHideDuration={4000}
+        onClose={() => setStatus({ ...status, open: false })}
       >
-        {WEEKDAYS.map((day) => <Tab key={day} label={day} />)}
-      </Tabs>
-
-      <List sx={{ px: 2 }}>
-        {daysExercises.map((ex) => (
-          <Card key={ex.id} sx={{ mb: 1, borderRadius: 3 }}>
-            <ListItem
-              secondaryAction={
-                <Box>
-                  <IconButton onClick={() => handleOpen(ex)}><EditIcon /></IconButton>
-                  <IconButton onClick={() => handleDelete(ex.id)} color="error"><DeleteIcon /></IconButton>
-                </Box>
-              }
-            >
-              <ListItemText
-                primary={ex.name}
-                secondary={
-                    <React.Fragment>
-                        <Typography variant="body2" component="span" display="block">
-                            {ex.targetSets} x {ex.targetReps} Wdh {ex.targetWeight > 0 && `@ +${ex.targetWeight}kg`}
-                        </Typography>
-                        <Chip label={`${ex.restTime || 60}s Pause`} size="small" sx={{ mt: 0.5, height: 20, fontSize: '0.7rem' }} />
-                    </React.Fragment>
-                }
-                primaryTypographyProps={{ fontWeight: 600 }}
-              />
-            </ListItem>
-          </Card>
-        ))}
-      </List>
-
-      <Fab color="primary" sx={{ position: 'fixed', bottom: 90, right: 16 }} onClick={() => handleOpen(null)}>
-        <AddIcon />
-      </Fab>
-
-      {/* Edit Dialog */}
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} fullWidth maxWidth="xs">
-        <DialogTitle>{editingId ? 'Übung bearbeiten' : 'Neue Übung'}</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-            <TextField label="Name" fullWidth value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
-            <FormControl fullWidth>
-              <InputLabel>Wochentag</InputLabel>
-              <Select value={formData.day} label="Wochentag" onChange={(e) => setFormData({ ...formData, day: e.target.value })}>
-                {WEEKDAYS.map(day => <MenuItem key={day} value={day}>{day}</MenuItem>)}
-              </Select>
-            </FormControl>
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <TextField label="Sätze" type="number" fullWidth value={formData.targetSets} onChange={(e) => setFormData({ ...formData, targetSets: e.target.value })} />
-              <TextField label="Ziel Wdh." type="number" fullWidth value={formData.targetReps} onChange={(e) => setFormData({ ...formData, targetReps: e.target.value })} />
-            </Box>
-            <Box sx={{ display: 'flex', gap: 2 }}>
-                <TextField label="Zusatzgewicht (kg)" type="number" fullWidth value={formData.targetWeight} onChange={(e) => setFormData({ ...formData, targetWeight: e.target.value })} />
-                <TextField label="Pause (sek)" type="number" fullWidth value={formData.restTime} onChange={(e) => setFormData({ ...formData, restTime: e.target.value })} />
-            </Box>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Abbrechen</Button>
-          <Button onClick={handleSave} variant="contained">Speichern</Button>
-        </DialogActions>
-      </Dialog>
+        <Alert severity={status.severity} variant="filled">
+          {status.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
-}
+};
+
+export default Settings;
