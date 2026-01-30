@@ -1,25 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Typography,
-  Paper,
-  Button,
-  LinearProgress,
-  IconButton,
-  Card,
-  CardContent,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions
-} from '@mui/material';
-import {
-  PlayArrow,
-  Pause,
-  SkipNext,
-  CheckCircle,
-  Timer as TimerIcon
-} from '@mui/icons-material';
+import { Box, Typography, Paper, Button, LinearProgress, List, ListItem, ListItemIcon, ListItemText, Divider } from '@mui/material';
+import { CheckCircle, RadioButtonUnchecked, Timer as TimerIcon, SkipNext } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../db';
 
@@ -28,158 +9,98 @@ const Workout = () => {
   const [exercises, setExercises] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [currentSet, setCurrentSet] = useState(1);
-  const [isPaused, setIsPaused] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
-  const [workoutComplete, setWorkoutComplete] = useState(false);
 
   useEffect(() => {
-    const loadWorkout = async () => {
-      const allExercises = await db.exercises.toArray();
-      if (allExercises.length > 0) {
-        setExercises(allExercises);
-      }
+    const load = async () => {
+      const all = await db.exercises.toArray();
+      setExercises(all);
     };
-    loadWorkout();
+    load();
   }, []);
 
   useEffect(() => {
     let timer;
-    if (showTimer && timeLeft > 0 && !isPaused) {
-      timer = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 1000);
+    if (showTimer && timeLeft > 0) {
+      timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
     } else if (timeLeft === 0 && showTimer) {
-      handleTimerComplete();
-    }
-    return () => clearInterval(timer);
-  }, [showTimer, timeLeft, isPaused]);
-
-  const handleSetComplete = () => {
-    const currentExercise = exercises[currentIndex];
-    setTimeLeft(currentExercise.restTime || 60);
-    setShowTimer(true);
-  };
-
-  const handleTimerComplete = () => {
-    setShowTimer(false);
-    const currentExercise = exercises[currentIndex];
-    
-    if (currentSet < currentExercise.sets) {
-      setCurrentSet(prev => prev + 1);
-    } else {
-      if (currentIndex < exercises.length - 1) {
-        setCurrentIndex(prev => prev + 1);
-        setCurrentSet(1);
+      setShowTimer(false);
+      if (currentSet < exercises[currentIndex].sets) {
+        setCurrentSet(prev => prev + 1);
       } else {
-        setWorkoutComplete(true);
+        if (currentIndex < exercises.length - 1) {
+          setCurrentIndex(prev => prev + 1);
+          setCurrentSet(1);
+        } else {
+          navigate('/'); // Training Ende
+        }
       }
     }
-  };
+    return () => clearInterval(timer);
+  }, [showTimer, timeLeft, currentIndex, currentSet, exercises, navigate]);
 
-  const skipTimer = () => {
-    setTimeLeft(0);
-  };
+  if (exercises.length === 0) return <Typography sx={{ p: 2 }}>Keine Übungen gefunden.</Typography>;
 
-  if (exercises.length === 0) return <Typography sx={{ p: 2 }}>Lade Training...</Typography>;
-  if (workoutComplete) {
-    return (
-      <Box sx={{ p: 3, textAlign: 'center' }}>
-        <CheckCircle sx={{ fontSize: 100, color: 'success.main', mb: 2 }} />
-        <Typography variant="h4" gutterBottom>Training beendet!</Typography>
-        <Button variant="contained" onClick={() => navigate('/')}>Zum Dashboard</Button>
-      </Box>
-    );
-  }
-
-  const currentExercise = exercises[currentIndex];
+  const currentEx = exercises[currentIndex];
 
   return (
     <Box sx={{ p: 2, pb: 8 }}>
-      <Typography variant="h6" color="primary" gutterBottom>
-        Übung {currentIndex + 1} von {exercises.length}
+      {/* Fortschrittsliste */}
+      <Paper sx={{ p: 1, mb: 2, borderRadius: 2, bgcolor: 'background.default' }} variant="outlined">
+        <List dense sx={{ display: 'flex', flexDirection: 'row', overflowX: 'auto', p: 0 }}>
+          {exercises.map((ex, idx) => (
+            <ListItem key={ex.id} sx={{ minWidth: 'fit-content', px: 1 }}>
+              <ListItemIcon sx={{ minWidth: 30 }}>
+                {idx < currentIndex ? <CheckCircle color="success" fontSize="small" /> : 
+                 idx === currentIndex ? <RadioButtonUnchecked color="primary" fontSize="small" /> : 
+                 <RadioButtonUnchecked color="disabled" fontSize="small" />}
+              </ListItemIcon>
+              <ListItemText 
+                primary={ex.name} 
+                primaryTypographyProps={{ fontSize: '0.75rem', fontWeight: idx === currentIndex ? 'bold' : 'normal' }} 
+              />
+            </ListItem>
+          ))}
+        </List>
+      </Paper>
+
+      <Typography variant="h5" align="center" gutterBottom sx={{ fontWeight: 'bold' }}>
+        {currentEx.name}
       </Typography>
-
-      <Card sx={{ mb: 3, borderRadius: 3, bgcolor: 'background.paper' }}>
-        <CardContent>
-          <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
-            {currentExercise.name}
-          </Typography>
-          <Typography variant="h6" color="text.secondary">
-            {currentExercise.reps} Wiederholungen
-          </Typography>
-        </CardContent>
-      </Card>
-
-      <Box sx={{ display: 'flex', justifyContent: 'center', mb: 4 }}>
-        <Paper
-          elevation={0}
-          sx={{
-            width: 150,
-            height: 150,
-            borderRadius: '50%',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'center',
-            border: '8px solid',
-            borderColor: 'primary.main',
-            bgcolor: 'background.default'
-          }}
-        >
-          <Typography variant="h3" sx={{ fontWeight: 'bold' }}>{currentSet}</Typography>
-          <Typography variant="subtitle1">von {currentExercise.sets}</Typography>
+      
+      <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
+        <Paper elevation={3} sx={{ p: 4, borderRadius: '50%', textAlign: 'center', width: 120, height: 120, display: 'flex', flexDirection: 'column', justifyContent: 'center', border: '4px solid', borderColor: showTimer ? 'secondary.main' : 'primary.main' }}>
+          <Typography variant="h4" sx={{ fontWeight: 'bold' }}>{showTimer ? timeLeft : currentSet}</Typography>
+          <Typography variant="caption">{showTimer ? 'PAUSE' : `SATZ / ${currentEx.sets}`}</Typography>
         </Paper>
       </Box>
 
+      <Typography variant="h6" align="center" color="text.secondary" gutterBottom>
+        Ziel: {currentEx.reps} Wiederholungen
+      </Typography>
+
       {!showTimer ? (
-        <Button
-          fullWidth
-          variant="contained"
-          size="large"
-          onClick={handleSetComplete}
-          sx={{ py: 2, borderRadius: 4, fontSize: '1.2rem' }}
+        <Button 
+          fullWidth variant="contained" size="large" 
+          onClick={() => { setTimeLeft(currentEx.restTime); setShowTimer(true); }}
+          sx={{ py: 2, mt: 2, borderRadius: 3 }}
         >
-          Satz {currentSet} OK
+          Satz {currentSet} OK - Pause starten
         </Button>
       ) : (
-        <Paper sx={{ p: 3, borderRadius: 4, textAlign: 'center', bgcolor: 'primary.main', color: 'white' }}>
-          <TimerIcon sx={{ fontSize: 40, mb: 1 }} />
-          <Typography variant="h3" sx={{ mb: 2 }}>
-            {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
-          </Typography>
-          <LinearProgress 
-            variant="determinate" 
-            value={(timeLeft / (currentExercise.restTime || 60)) * 100} 
-            sx={{ mb: 3, height: 10, borderRadius: 5, bgcolor: 'rgba(255,255,255,0.3)', '& .MuiLinearProgress-bar': { bgcolor: 'white' } }}
-          />
-          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
-            <IconButton onClick={() => setIsPaused(!isPaused)} sx={{ color: 'white', border: '2px solid white' }}>
-              {isPaused ? <PlayArrow /> : <Pause />}
-            </IconButton>
-            <IconButton onClick={skipTimer} sx={{ color: 'white', border: '2px solid white' }}>
-              <SkipNext />
-            </IconButton>
-          </Box>
-        </Paper>
-      )}
-
-      <Dialog open={showTimer} onClose={() => {}} fullWidth>
-        <DialogTitle sx={{ textAlign: 'center' }}>Pause</DialogTitle>
-        <DialogContent sx={{ textAlign: 'center', pb: 4 }}>
-          <Typography variant="h2" color="primary" sx={{ fontWeight: 'bold', mb: 2 }}>
-             {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
-          </Typography>
-          <Typography variant="body1">
-            {currentSet < currentExercise.sets ? `Nächster Satz: ${currentSet + 1}` : 'Nächste Übung folgt'}
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ justifyContent: 'center', pb: 3 }}>
-          <Button onClick={skipTimer} variant="outlined" color="primary">
+        <Box sx={{ mt: 2 }}>
+          <LinearProgress variant="determinate" value={(timeLeft / currentEx.restTime) * 100} sx={{ height: 10, borderRadius: 5, mb: 2 }} />
+          <Button fullWidth variant="outlined" startIcon={<SkipNext />} onClick={() => setTimeLeft(0)}>
             Pause überspringen
           </Button>
-        </DialogActions>
-      </Dialog>
+        </Box>
+      )}
+
+      <Divider sx={{ my: 4 }} />
+      <Typography variant="body2" align="center" color="text.secondary">
+        Nächste Übung: {exercises[currentIndex + 1]?.name || 'Ende'}
+      </Typography>
     </Box>
   );
 };

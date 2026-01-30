@@ -11,166 +11,113 @@ import {
   MenuItem,
   OutlinedInput,
   Chip,
-  Alert,
+  IconButton,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  Divider,
   Snackbar,
-  Divider
+  Alert
 } from '@mui/material';
+import { Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material';
 import { db } from '../db';
 import { exportData, importData } from '../utils/exportManager';
 
-const DAYS_OF_WEEK = [
-  'Montag',
-  'Dienstag',
-  'Mittwoch',
-  'Donnerstag',
-  'Freitag',
-  'Samstag',
-  'Sonntag'
-];
+const DAYS_OF_WEEK = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 
 const Settings = () => {
-  const [settings, setSettings] = useState({
-    userName: '',
-    trainingDays: [],
-    reminderTime: '18:00'
-  });
+  const [settings, setSettings] = useState({ userName: '', trainingDays: [] });
+  const [exercises, setExercises] = useState([]);
+  const [newEx, setNewEx] = useState({ name: '', sets: 3, reps: 10, restTime: 60 });
   const [status, setStatus] = useState({ open: false, message: '', severity: 'success' });
 
   useEffect(() => {
-    const loadSettings = async () => {
+    const loadData = async () => {
       const savedSettings = await db.settings.get('user_settings');
-      if (savedSettings) {
-        setSettings(savedSettings.value);
-      }
+      if (savedSettings) setSettings(savedSettings.value);
+      const allEx = await db.exercises.toArray();
+      setExercises(allEx);
     };
-    loadSettings();
+    loadData();
   }, []);
 
-  const handleSave = async () => {
-    try {
-      await db.settings.put({ id: 'user_settings', value: settings });
-      setStatus({ open: true, message: 'Einstellungen gespeichert!', severity: 'success' });
-    } catch (error) {
-      setStatus({ open: true, message: 'Fehler beim Speichern', severity: 'error' });
-    }
+  const handleSaveSettings = async () => {
+    await db.settings.put({ id: 'user_settings', value: settings });
+    setStatus({ open: true, message: 'Profil gespeichert!', severity: 'success' });
   };
 
-  const handleDayChange = (event) => {
-    const {
-      target: { value },
-    } = event;
-    setSettings({
-      ...settings,
-      // Bei Multiple-Select ist value ein Array
-      trainingDays: typeof value === 'string' ? value.split(',') : value,
-    });
+  const handleAddExercise = async () => {
+    if (!newEx.name) return;
+    const id = await db.exercises.add(newEx);
+    setExercises([...exercises, { ...newEx, id }]);
+    setNewEx({ name: '', sets: 3, reps: 10, restTime: 60 });
   };
 
-  const handleExport = async () => {
-    const success = await exportData();
-    if (success) {
-      setStatus({ open: true, message: 'Daten erfolgreich exportiert!', severity: 'success' });
-    }
-  };
-
-  const handleImport = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const success = await importData(file);
-    if (success) {
-      setStatus({ open: true, message: 'Daten erfolgreich importiert!', severity: 'success' });
-      window.location.reload();
-    } else {
-      setStatus({ open: true, message: 'Fehler beim Importieren', severity: 'error' });
-    }
+  const handleDeleteExercise = async (id) => {
+    await db.exercises.delete(id);
+    setExercises(exercises.filter(ex => ex.id !== id));
   };
 
   return (
     <Box sx={{ p: 2, pb: 8 }}>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-        Einstellungen
-      </Typography>
+      <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold' }}>Einstellungen</Typography>
 
-      <Paper sx={{ p: 3, mb: 3, borderRadius: 3 }}>
-        <Typography variant="h6" gutterBottom>Profil</Typography>
+      <Paper sx={{ p: 2, mb: 3, borderRadius: 3 }}>
+        <Typography variant="h6">Profil & Trainingstage</Typography>
         <TextField
-          fullWidth
-          label="Name"
-          value={settings.userName}
-          onChange={(e) => setSettings({ ...settings, userName: e.target.value })}
-          margin="normal"
+          fullWidth label="Name" value={settings.userName}
+          onChange={(e) => setSettings({ ...settings, userName: e.target.value })} margin="normal"
         />
-
-        <Divider sx={{ my: 3 }} />
-
-        <Typography variant="h6" gutterBottom>Trainingstage</Typography>
         <FormControl fullWidth margin="normal">
-          <InputLabel id="training-days-label">Wochentage</InputLabel>
+          <InputLabel>Trainingstage</InputLabel>
           <Select
-            labelId="training-days-label"
-            id="training-days-select"
-            multiple
-            value={settings.trainingDays}
-            onChange={handleDayChange}
-            input={<OutlinedInput label="Wochentage" />}
+            multiple value={settings.trainingDays}
+            onChange={(e) => setSettings({ ...settings, trainingDays: e.target.value })}
+            input={<OutlinedInput label="Trainingstage" />}
             renderValue={(selected) => (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                {selected.map((value) => (
-                  <Chip key={value} label={value} color="primary" size="small" />
-                ))}
+                {selected.map((value) => <Chip key={value} label={value} size="small" color="primary" />)}
               </Box>
             )}
           >
-            {DAYS_OF_WEEK.map((day) => (
-              <MenuItem key={day} value={day}>
-                {day}
-              </MenuItem>
-            ))}
+            {DAYS_OF_WEEK.map(day => <MenuItem key={day} value={day}>{day}</MenuItem>)}
           </Select>
         </FormControl>
-
-        <TextField
-          fullWidth
-          label="Erinnerungszeit"
-          type="time"
-          value={settings.reminderTime}
-          onChange={(e) => setSettings({ ...settings, reminderTime: e.target.value })}
-          margin="normal"
-          InputLabelProps={{ shrink: true }}
-        />
-
-        <Button
-          fullWidth
-          variant="contained"
-          onClick={handleSave}
-          sx={{ mt: 3, py: 1.5, borderRadius: 2 }}
-        >
-          Speichern
-        </Button>
+        <Button variant="contained" fullWidth onClick={handleSaveSettings} sx={{ mt: 1 }}>Profil Speichern</Button>
       </Paper>
 
-      <Paper sx={{ p: 3, borderRadius: 3 }}>
-        <Typography variant="h6" gutterBottom>Daten-Management</Typography>
-        <Box sx={{ display: 'flex', gap: 2, flexDirection: 'column' }}>
-          <Button variant="outlined" onClick={handleExport}>
-            Daten Exportieren (.json)
-          </Button>
-          <Button variant="outlined" component="label">
-            Daten Importieren
-            <input type="file" hidden accept=".json" onChange={handleImport} />
-          </Button>
+      <Paper sx={{ p: 2, mb: 3, borderRadius: 3 }}>
+        <Typography variant="h6" gutterBottom>Übungen Verwalten</Typography>
+        <Box sx={{ display: 'grid', gap: 1, mb: 2 }}>
+          <TextField label="Name der Übung" value={newEx.name} onChange={(e) => setNewEx({...newEx, name: e.target.value})} size="small" />
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <TextField label="Sätze" type="number" value={newEx.sets} onChange={(e) => setNewEx({...newEx, sets: parseInt(e.target.value)})} size="small" />
+            <TextField label="Wdh." type="number" value={newEx.reps} onChange={(e) => setNewEx({...newEx, reps: parseInt(e.target.value)})} size="small" />
+            <TextField label="Pause (s)" type="number" value={newEx.restTime} onChange={(e) => setNewEx({...newEx, restTime: parseInt(e.target.value)})} size="small" />
+          </Box>
+          <Button variant="outlined" startIcon={<AddIcon />} onClick={handleAddExercise}>Hinzufügen</Button>
         </Box>
+        <Divider sx={{ my: 2 }} />
+        <List dense>
+          {exercises.map((ex) => (
+            <ListItem key={ex.id}>
+              <ListItemText primary={ex.name} secondary={`${ex.sets} Sätze à ${ex.reps} Wdh. (${ex.restTime}s Pause)`} />
+              <ListItemSecondaryAction>
+                <IconButton edge="end" onClick={() => handleDeleteExercise(ex.id)}><DeleteIcon /></IconButton>
+              </ListItemSecondaryAction>
+            </ListItem>
+          ))}
+        </List>
       </Paper>
 
-      <Snackbar
-        open={status.open}
-        autoHideDuration={4000}
-        onClose={() => setStatus({ ...status, open: false })}
-      >
-        <Alert severity={status.severity} variant="filled">
-          {status.message}
-        </Alert>
+      <Paper sx={{ p: 2, borderRadius: 3 }}>
+        <Typography variant="h6" gutterBottom>Daten</Typography>
+        <Button fullWidth variant="text" onClick={exportData}>Exportieren (.json)</Button>
+      </Paper>
+
+      <Snackbar open={status.open} autoHideDuration={3000} onClose={() => setStatus({...status, open: false})}>
+        <Alert severity={status.severity}>{status.message}</Alert>
       </Snackbar>
     </Box>
   );
