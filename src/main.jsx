@@ -5,12 +5,11 @@ import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import App from './App.jsx'
 
-// Service Worker Registrierung für PWA-Installierbarkeit
 registerSW({ immediate: true })
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename="/pwa-fitness-tracker">
       <App />
     </BrowserRouter>
   </StrictMode>,

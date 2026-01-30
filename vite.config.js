@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  // WICHTIG: Ersetze 'pwa-fitness-tracker' durch deinen exakten Repository-Namen
+  // WICHTIG: Der Schrägstrich am Anfang und Ende muss sein!
   base: '/pwa-fitness-tracker/', 
   plugins: [
     react(),
@@ -24,9 +24,8 @@ export default defineConfig({
         display: 'standalone',
         display_override: ['window-controls-overlay'],
         orientation: 'portrait',
-        // Die Pfade hier bleiben relativ, damit Vite sie mit der base kombiniert
-        start_url: './',
-        scope: './',
+        start_url: '/pwa-fitness-tracker/',
+        scope: '/pwa-fitness-tracker/',
         icons: [
           {
             src: 'pwa-192x192.png',
