@@ -24,13 +24,13 @@ export default function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       
-      {/* Container füllt exakt den Screen */}
       <Box 
         sx={{ 
           display: 'flex', 
           flexDirection: 'column', 
-          height: '100dvh', // Dynamic Viewport Height für Mobile
-          overflow: 'hidden' 
+          height: '100dvh', // Nutzt die volle Höhe inklusive Systemleisten
+          overflow: 'hidden',
+          bgcolor: 'background.default'
         }}
       >
         
@@ -40,8 +40,8 @@ export default function App() {
             flexGrow: 1, 
             overflowY: 'auto', 
             overflowX: 'hidden',
-            bgcolor: 'background.default',
-            pb: 1
+            /* Verhindert, dass Inhalt hinter die untere Leiste rutscht */
+            pb: 2 
           }}
         >
           <Routes>
@@ -52,8 +52,17 @@ export default function App() {
           </Routes>
         </Box>
 
-        {/* Fixierte Fußleiste */}
-        <Paper elevation={3} sx={{ zIndex: 1000, borderRadius: 0 }}>
+        {/* Fixierte Fußleiste mit Safe-Area-Padding */}
+        <Paper 
+          elevation={3} 
+          sx={{ 
+            zIndex: 1000, 
+            borderRadius: 0,
+            /* Der entscheidende Fix für Android 16 Navigationsleisten: */
+            paddingBottom: 'env(safe-area-inset-bottom)',
+            bgcolor: 'background.paper'
+          }}
+        >
           <BottomNavigation
             showLabels
             value={value}
