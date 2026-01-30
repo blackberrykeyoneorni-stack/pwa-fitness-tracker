@@ -5,20 +5,17 @@ import { Settings as SettingsIcon, FitnessCenter, Timeline } from '@mui/icons-ma
 
 import theme from './theme';
 import Settings from './pages/Settings';
-
-// Platzhalter für noch nicht existierende Seiten
-const WorkoutPlaceholder = () => <Box p={3}>Workout Page (Kommt in Schritt 2)</Box>;
-const AnalysisPlaceholder = () => <Box p={3}>Analysis Page (Kommt in Schritt 2)</Box>;
+import Workout from './pages/Workout';   // <--- Import Neu
+import Analysis from './pages/Analysis'; // <--- Import Neu
 
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
-
-  // Bestimmt den aktiven Tab basierend auf der URL
+  
   const getActiveTab = () => {
     if (location.pathname === '/settings') return 2;
     if (location.pathname === '/analysis') return 1;
-    return 0; // Default: Workout
+    return 0; 
   };
 
   const [value, setValue] = useState(getActiveTab());
@@ -26,19 +23,16 @@ export default function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-
-      {/* Haupt-Content Bereich */}
+      
       <Box sx={{ pb: 7, minHeight: '100vh', bgcolor: 'background.default' }}>
         <Routes>
-          <Route path="/" element={<WorkoutPlaceholder />} />
-          <Route path="/analysis" element={<AnalysisPlaceholder />} />
+          <Route path="/" element={<Workout />} />
+          <Route path="/analysis" element={<Analysis />} />
           <Route path="/settings" element={<Settings />} />
-          {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Box>
 
-      {/* Untere Navigationsleiste (Mobile Style) */}
       <Paper sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1000 }} elevation={3}>
         <BottomNavigation
           showLabels
