@@ -3,13 +3,15 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  base: './',
+  // Umstellung auf absoluten Pfad für korrekte Manifest-Referenzierung
+  base: '/',
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      // Nur tatsächlich vorhandene Assets aufnehmen
+      includeAssets: ['vite.svg'],
       devOptions: {
         enabled: true
       },
@@ -23,8 +25,8 @@ export default defineConfig({
         display: 'standalone',
         display_override: ['window-controls-overlay'],
         orientation: 'portrait',
-        start_url: './',
-        scope: './',
+        start_url: '/',
+        scope: '/',
         icons: [
           {
             src: 'pwa-192x192.png',
