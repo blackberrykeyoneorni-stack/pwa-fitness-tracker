@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  // WICHTIG: Damit relative Pfade auf GitHub Pages funktionieren
+  base: './', 
   plugins: [
     react(),
     VitePWA({
@@ -12,7 +14,10 @@ export default defineConfig({
         name: 'Krafttraining Tracker',
         short_name: 'Training',
         description: 'Offline-First PWA für Krafttraining',
-        theme_color: '#ffffff',
+        theme_color: '#141218', // Angepasst an Dark Mode Background
+        background_color: '#141218',
+        display: 'standalone',
+        orientation: 'portrait',
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -24,9 +29,7 @@ export default defineConfig({
             sizes: '512x512',
             type: 'image/png'
           }
-        ],
-        display: 'standalone',
-        background_color: '#ffffff',
+        ]
       }
     })
   ],
