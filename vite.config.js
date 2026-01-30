@@ -10,8 +10,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      devOptions: {
+        enabled: true
+      },
       manifest: {
-        id: '/pwa-fitness-tracker/',
+        id: 'pwa-fitness-tracker',
         name: 'Krafttraining Tracker',
         short_name: 'Training',
         description: 'Offline-First PWA für Krafttraining',
