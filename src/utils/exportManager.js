@@ -4,10 +4,14 @@ export const exportData = async () => {
   try {
     const exercises = await db.exercises.toArray();
     const settings = await db.settings.toArray();
-    
+    const logs = await db.logs.toArray();
+    const dailyNotes = await db.dailyNotes.toArray();
+
     const data = {
       exercises,
       settings,
+      logs,
+      dailyNotes,
       exportDate: new Date().toISOString()
     };
 
@@ -22,6 +26,38 @@ export const exportData = async () => {
     return true;
   } catch (error) {
     console.error('Export fehlgeschlagen:', error);
+    return false;
+  }
+};
+
+export const exportCSV = async () => {
+  try {
+    const logs = await db.logs.orderBy('date').toArray();
+    const exercises = await db.exercises.toArray();
+    const exerciseMap = new Map(exercises.map(ex => [ex.id, ex.name]));
+
+    const csvRows = [
+      ['Datum', 'Übung']
+    ];
+
+    logs.forEach(log => {
+      const exerciseName = exerciseMap.get(log.exerciseId) || 'Unbekannt';
+      csvRows.push([log.date, exerciseName]);
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8,"
+      + csvRows.map(e => e.join(",")).join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `training_data.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return true;
+  } catch (error) {
+    console.error('CSV Export fehlgeschlagen:', error);
     return false;
   }
 };

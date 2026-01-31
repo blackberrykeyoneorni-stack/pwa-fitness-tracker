@@ -22,7 +22,7 @@ import {
 } from '@mui/material';
 import { Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material';
 import { db } from '../db';
-import { exportData, importData } from '../utils/exportManager';
+import { exportData, importData, exportCSV } from '../utils/exportManager';
 
 const DAYS_OF_WEEK = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 
@@ -90,11 +90,11 @@ const Settings = () => {
       <Paper sx={{ p: 2, mb: 3, borderRadius: 3 }}>
         <Typography variant="h6" gutterBottom>Übungen Verwalten</Typography>
         <Box sx={{ display: 'grid', gap: 1, mb: 2 }}>
-          <TextField label="Name der Übung" value={newEx.name} onChange={(e) => setNewEx({...newEx, name: e.target.value})} size="small" />
+          <TextField label="Name der Übung" value={newEx.name} onChange={(e) => setNewEx({ ...newEx, name: e.target.value })} size="small" />
           <Box sx={{ display: 'flex', gap: 1 }}>
-            <TextField label="Sätze" type="number" value={newEx.sets} onChange={(e) => setNewEx({...newEx, sets: parseInt(e.target.value)})} size="small" />
-            <TextField label="Wdh." type="number" value={newEx.reps} onChange={(e) => setNewEx({...newEx, reps: parseInt(e.target.value)})} size="small" />
-            <TextField label="Pause (s)" type="number" value={newEx.restTime} onChange={(e) => setNewEx({...newEx, restTime: parseInt(e.target.value)})} size="small" />
+            <TextField label="Sätze" type="number" value={newEx.sets} onChange={(e) => setNewEx({ ...newEx, sets: parseInt(e.target.value) })} size="small" />
+            <TextField label="Wdh." type="number" value={newEx.reps} onChange={(e) => setNewEx({ ...newEx, reps: parseInt(e.target.value) })} size="small" />
+            <TextField label="Pause (s)" type="number" value={newEx.restTime} onChange={(e) => setNewEx({ ...newEx, restTime: parseInt(e.target.value) })} size="small" />
           </Box>
           <Button variant="outlined" startIcon={<AddIcon />} onClick={handleAddExercise}>Hinzufügen</Button>
         </Box>
@@ -114,9 +114,10 @@ const Settings = () => {
       <Paper sx={{ p: 2, borderRadius: 3 }}>
         <Typography variant="h6" gutterBottom>Daten</Typography>
         <Button fullWidth variant="text" onClick={exportData}>Exportieren (.json)</Button>
+        <Button fullWidth variant="text" onClick={exportCSV}>Exportieren (.csv)</Button>
       </Paper>
 
-      <Snackbar open={status.open} autoHideDuration={3000} onClose={() => setStatus({...status, open: false})}>
+      <Snackbar open={status.open} autoHideDuration={3000} onClose={() => setStatus({ ...status, open: false })}>
         <Alert severity={status.severity}>{status.message}</Alert>
       </Snackbar>
     </Box>
