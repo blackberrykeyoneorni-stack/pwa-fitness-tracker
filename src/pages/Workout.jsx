@@ -165,7 +165,9 @@ const Workout = () => {
                 </Box>
 
                 <Typography variant="h6" color="text.secondary">
-                  Ziel: {selectedExercise.reps} Wiederholungen
+                  Ziel:
+                  {selectedExercise.isTime ? ` ${selectedExercise.targetTime || 0}s` : ` ${selectedExercise.reps} Wdh.`}
+                  {selectedExercise.isWeight && selectedExercise.targetWeight ? ` @ ${selectedExercise.targetWeight}kg` : ''}
                 </Typography>
 
                 {showTimer && (

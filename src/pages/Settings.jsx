@@ -18,7 +18,9 @@ import {
   ListItemSecondaryAction,
   Divider,
   Snackbar,
-  Alert
+  Alert,
+  Checkbox,
+  FormControlLabel
 } from '@mui/material';
 import { Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material';
 import { db } from '../db';
@@ -29,7 +31,10 @@ const DAYS_OF_WEEK = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag',
 const Settings = () => {
   const [settings, setSettings] = useState({ userName: '', trainingDays: [] });
   const [exercises, setExercises] = useState([]);
-  const [newEx, setNewEx] = useState({ name: '', sets: 3, reps: 10, restTime: 60 });
+  const [newEx, setNewEx] = useState({
+    name: '', sets: 3, reps: 10, restTime: 60,
+    isWeight: false, isTime: false, targetWeight: 0, targetTime: 0
+  });
   const [status, setStatus] = useState({ open: false, message: '', severity: 'success' });
 
   useEffect(() => {
@@ -51,7 +56,10 @@ const Settings = () => {
     if (!newEx.name) return;
     const id = await db.exercises.add(newEx);
     setExercises([...exercises, { ...newEx, id }]);
-    setNewEx({ name: '', sets: 3, reps: 10, restTime: 60 });
+    setNewEx({
+      name: '', sets: 3, reps: 10, restTime: 60,
+      isWeight: false, isTime: false, targetWeight: 0, targetTime: 0
+    });
   };
 
   const handleDeleteExercise = async (id) => {
@@ -91,10 +99,30 @@ const Settings = () => {
         <Typography variant="h6" gutterBottom>Übungen Verwalten</Typography>
         <Box sx={{ display: 'grid', gap: 1, mb: 2 }}>
           <TextField label="Name der Übung" value={newEx.name} onChange={(e) => setNewEx({ ...newEx, name: e.target.value })} size="small" />
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <TextField label="Sätze" type="number" value={newEx.sets} onChange={(e) => setNewEx({ ...newEx, sets: parseInt(e.target.value) })} size="small" />
-            <TextField label="Wdh." type="number" value={newEx.reps} onChange={(e) => setNewEx({ ...newEx, reps: parseInt(e.target.value) })} size="small" />
-            <TextField label="Pause (s)" type="number" value={newEx.restTime} onChange={(e) => setNewEx({ ...newEx, restTime: parseInt(e.target.value) })} size="small" />
+          <Box sx={{ display: 'flex', gap: 2, mb: 1 }}>
+            <FormControlLabel
+              control={<Checkbox checked={newEx.isWeight} onChange={(e) => setNewEx({ ...newEx, isWeight: e.target.checked })} />}
+              label="Gewicht"
+            />
+            <FormControlLabel
+              control={<Checkbox checked={newEx.isTime} onChange={(e) => setNewEx({ ...newEx, isTime: e.target.checked })} />}
+              label="Zeit statt Wdh."
+            />
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <TextField label="Sätze" type="number" value={newEx.sets} onChange={(e) => setNewEx({ ...newEx, sets: parseInt(e.target.value) || 0 })} size="small" sx={{ width: '80px' }} />
+
+            {!newEx.isTime ? (
+              <TextField label="Wdh." type="number" value={newEx.reps} onChange={(e) => setNewEx({ ...newEx, reps: parseInt(e.target.value) || 0 })} size="small" sx={{ width: '80px' }} />
+            ) : (
+              <TextField label="Zeit (s)" type="number" value={newEx.targetTime} onChange={(e) => setNewEx({ ...newEx, targetTime: parseInt(e.target.value) || 0 })} size="small" sx={{ width: '100px' }} />
+            )}
+
+            {newEx.isWeight && (
+              <TextField label="Gewicht (kg)" type="number" value={newEx.targetWeight} onChange={(e) => setNewEx({ ...newEx, targetWeight: parseFloat(e.target.value) || 0 })} size="small" sx={{ width: '100px' }} />
+            )}
+
+            <TextField label="Pause (s)" type="number" value={newEx.restTime} onChange={(e) => setNewEx({ ...newEx, restTime: parseInt(e.target.value) || 0 })} size="small" sx={{ width: '90px' }} />
           </Box>
           <Button variant="outlined" startIcon={<AddIcon />} onClick={handleAddExercise}>Hinzufügen</Button>
         </Box>
@@ -102,7 +130,15 @@ const Settings = () => {
         <List dense>
           {exercises.map((ex) => (
             <ListItem key={ex.id}>
-              <ListItemText primary={ex.name} secondary={`${ex.sets} Sätze à ${ex.reps} Wdh. (${ex.restTime}s Pause)`} />
+              <ListItemText
+                primary={ex.name}
+                secondary={
+                  `${ex.sets} Sätze` +
+                  (ex.isTime ? ` à ${ex.targetTime}s` : ` à ${ex.reps} Wdh.`) +
+                  (ex.isWeight && ex.targetWeight ? ` @ ${ex.targetWeight}kg` : '') +
+                  ` (${ex.restTime}s Pause)`
+                }
+              />
               <ListItemSecondaryAction>
                 <IconButton edge="end" onClick={() => handleDeleteExercise(ex.id)}><DeleteIcon /></IconButton>
               </ListItemSecondaryAction>
