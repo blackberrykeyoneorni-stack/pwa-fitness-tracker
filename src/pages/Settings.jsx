@@ -23,43 +23,39 @@ import {
   FormControlLabel
 } from '@mui/material';
 import { Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material';
-import { db } from '../db';
-import { exportData, importData, exportCSV } from '../utils/exportManager';
-
-const DAYS_OF_WEEK = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+import { db, WEEKDAYS } from '../db';
+import { exportData, exportCSV } from '../utils/exportManager';
 
 const Settings = () => {
-  const [settings, setSettings] = useState({ userName: '', trainingDays: [] });
   const [exercises, setExercises] = useState([]);
   const [newEx, setNewEx] = useState({
     name: '', sets: 3, reps: 10, restTime: 60,
-    isWeight: false, isTime: false, targetWeight: 0, targetTime: 0
+    isWeight: false, isTime: false, targetWeight: 0, targetTime: 0,
+    days: []
   });
   const [status, setStatus] = useState({ open: false, message: '', severity: 'success' });
 
   useEffect(() => {
     const loadData = async () => {
-      const savedSettings = await db.settings.get('user_settings');
-      if (savedSettings) setSettings(savedSettings.value);
       const allEx = await db.exercises.toArray();
       setExercises(allEx);
     };
     loadData();
   }, []);
 
-  const handleSaveSettings = async () => {
-    await db.settings.put({ id: 'user_settings', value: settings });
-    setStatus({ open: true, message: 'Profil gespeichert!', severity: 'success' });
-  };
-
   const handleAddExercise = async () => {
-    if (!newEx.name) return;
+    if (!newEx.name || newEx.days.length === 0) {
+      setStatus({ open: true, message: 'Name und mindestens ein Trainingstag erforderlich!', severity: 'error' });
+      return;
+    }
     const id = await db.exercises.add(newEx);
     setExercises([...exercises, { ...newEx, id }]);
     setNewEx({
       name: '', sets: 3, reps: 10, restTime: 60,
-      isWeight: false, isTime: false, targetWeight: 0, targetTime: 0
+      isWeight: false, isTime: false, targetWeight: 0, targetTime: 0,
+      days: []
     });
+    setStatus({ open: true, message: 'Übung hinzugefügt!', severity: 'success' });
   };
 
   const handleDeleteExercise = async (id) => {
@@ -72,33 +68,32 @@ const Settings = () => {
       <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold' }}>Einstellungen</Typography>
 
       <Paper sx={{ p: 2, mb: 3, borderRadius: 3 }}>
-        <Typography variant="h6">Profil & Trainingstage</Typography>
-        <TextField
-          fullWidth label="Name" value={settings.userName}
-          onChange={(e) => setSettings({ ...settings, userName: e.target.value })} margin="normal"
-        />
-        <FormControl fullWidth margin="normal">
-          <InputLabel>Trainingstage</InputLabel>
-          <Select
-            multiple value={settings.trainingDays}
-            onChange={(e) => setSettings({ ...settings, trainingDays: e.target.value })}
-            input={<OutlinedInput label="Trainingstage" />}
-            renderValue={(selected) => (
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                {selected.map((value) => <Chip key={value} label={value} size="small" color="primary" />)}
-              </Box>
-            )}
-          >
-            {DAYS_OF_WEEK.map(day => <MenuItem key={day} value={day}>{day}</MenuItem>)}
-          </Select>
-        </FormControl>
-        <Button variant="contained" fullWidth onClick={handleSaveSettings} sx={{ mt: 1 }}>Profil Speichern</Button>
-      </Paper>
-
-      <Paper sx={{ p: 2, mb: 3, borderRadius: 3 }}>
         <Typography variant="h6" gutterBottom>Übungen Verwalten</Typography>
         <Box sx={{ display: 'grid', gap: 1, mb: 2 }}>
-          <TextField label="Name der Übung" value={newEx.name} onChange={(e) => setNewEx({ ...newEx, name: e.target.value })} size="small" />
+          <TextField 
+            label="Name der Übung" 
+            value={newEx.name} 
+            onChange={(e) => setNewEx({ ...newEx, name: e.target.value })} 
+            size="small" 
+          />
+          
+          <FormControl fullWidth size="small" margin="dense">
+            <InputLabel>Trainingstage</InputLabel>
+            <Select
+              multiple
+              value={newEx.days}
+              onChange={(e) => setNewEx({ ...newEx, days: e.target.value })}
+              input={<OutlinedInput label="Trainingstage" />}
+              renderValue={(selected) => (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {selected.map((value) => <Chip key={value} label={value} size="small" color="primary" />)}
+                </Box>
+              )}
+            >
+              {WEEKDAYS.map(day => <MenuItem key={day} value={day}>{day}</MenuItem>)}
+            </Select>
+          </FormControl>
+
           <Box sx={{ display: 'flex', gap: 2, mb: 1 }}>
             <FormControlLabel
               control={<Checkbox checked={newEx.isWeight} onChange={(e) => setNewEx({ ...newEx, isWeight: e.target.checked })} />}
@@ -106,7 +101,7 @@ const Settings = () => {
             />
             <FormControlLabel
               control={<Checkbox checked={newEx.isTime} onChange={(e) => setNewEx({ ...newEx, isTime: e.target.checked })} />}
-              label="Zeit statt Wdh."
+              label="Zeit"
             />
           </Box>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -124,7 +119,7 @@ const Settings = () => {
 
             <TextField label="Pause (s)" type="number" value={newEx.restTime} onChange={(e) => setNewEx({ ...newEx, restTime: parseInt(e.target.value) || 0 })} size="small" sx={{ width: '90px' }} />
           </Box>
-          <Button variant="outlined" startIcon={<AddIcon />} onClick={handleAddExercise}>Hinzufügen</Button>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddExercise} sx={{ mt: 1 }}>Übung Hinzufügen</Button>
         </Box>
         <Divider sx={{ my: 2 }} />
         <List dense>
@@ -136,7 +131,7 @@ const Settings = () => {
                   `${ex.sets} Sätze` +
                   (ex.isTime ? ` à ${ex.targetTime}s` : ` à ${ex.reps} Wdh.`) +
                   (ex.isWeight && ex.targetWeight ? ` @ ${ex.targetWeight}kg` : '') +
-                  ` (${ex.restTime}s Pause)`
+                  ` | ${ex.days?.join(', ')}`
                 }
               />
               <ListItemSecondaryAction>
@@ -148,9 +143,11 @@ const Settings = () => {
       </Paper>
 
       <Paper sx={{ p: 2, borderRadius: 3 }}>
-        <Typography variant="h6" gutterBottom>Daten</Typography>
-        <Button fullWidth variant="text" onClick={exportData}>Exportieren (.json)</Button>
-        <Button fullWidth variant="text" onClick={exportCSV}>Exportieren (.csv)</Button>
+        <Typography variant="h6" gutterBottom>Datenverwaltung</Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Button fullWidth variant="outlined" onClick={exportData}>Exportieren (.json)</Button>
+          <Button fullWidth variant="outlined" onClick={exportCSV}>Exportieren (.csv)</Button>
+        </Box>
       </Paper>
 
       <Snackbar open={status.open} autoHideDuration={3000} onClose={() => setStatus({ ...status, open: false })}>
