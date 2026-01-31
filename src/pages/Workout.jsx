@@ -88,28 +88,59 @@ const Workout = () => {
 
   return (
     <Box sx={{ p: 2, pb: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Typography variant="h5" sx={{ fontWeight: 'bold' }}>Training</Typography>
+      {/* Header with Date */}
+      <Box sx={{ mb: 1, mt: 1 }}>
+        <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+          {new Date().toLocaleDateString('de-DE', { weekday: 'long' })}
+        </Typography>
+        <Typography variant="subtitle1" color="text.secondary">
+          {new Date().toLocaleDateString('de-DE', { year: 'numeric', month: 'long', day: 'numeric' })}
+        </Typography>
+      </Box>
 
       {/* Exercise Buttons */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {exercises.map((ex) => (
-          <Button
-            key={ex.id}
-            variant="contained"
-            color={completedExerciseIds.has(ex.id) ? "success" : "primary"}
-            size="large"
-            onClick={() => handleExerciseClick(ex)}
-            sx={{
-              py: 3,
-              fontSize: '1.2rem',
-              fontWeight: 'bold',
-              borderRadius: 4,
-              boxShadow: 3
-            }}
-          >
-            {ex.name}
-          </Button>
-        ))}
+        {exercises.map((ex) => {
+          const isCompleted = completedExerciseIds.has(ex.id);
+          return (
+            <Button
+              key={ex.id}
+              variant={isCompleted ? "contained" : "contained"}
+              // Using "contained" for both but controlled by disabled state style or color
+              // Actually, user asked for "nicht mehr ausführbar" (not executable), implying disabled.
+              // Primary button is good for active.
+              color="primary"
+              disabled={isCompleted}
+              size="large"
+              onClick={() => handleExerciseClick(ex)}
+              sx={{
+                py: 2,
+                px: 3,
+                borderRadius: 3, // Custom override if needed, or stick to theme
+                boxShadow: 3,
+                display: 'flex',
+                alignItems: 'flex-start', // Left align text
+                justifyContent: 'space-between',
+                textAlign: 'left',
+                bgcolor: isCompleted ? 'action.disabledBackground' : 'primary.main',
+                '&.Mui-disabled': {
+                  bgcolor: 'rgba(255, 255, 255, 0.12)', // Make sure it looks clearly disabled/done in dark mode
+                  color: 'text.disabled'
+                }
+              }}
+            >
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
+                  {ex.name}
+                </Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  {ex.sets} Sätze à {ex.isTime ? `${ex.targetTime}s` : `${ex.reps} Wdh.`}
+                  {ex.isWeight && ex.targetWeight ? ` @ ${ex.targetWeight}kg` : ''}
+                </Typography>
+              </Box>
+            </Button>
+          );
+        })}
       </Box>
 
       {/* Daily Note */}

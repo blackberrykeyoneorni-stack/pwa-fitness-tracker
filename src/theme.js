@@ -24,7 +24,7 @@ const theme = createTheme({
     },
   },
   shape: {
-    borderRadius: 16, // Stärkere Rundungen für Expressive Look
+    borderRadius: 8, // Etwas weniger rund
   },
   typography: {
     fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
@@ -48,7 +48,7 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           textTransform: 'none', // Lesbarer
-          borderRadius: 24, // Pill-Shape
+          borderRadius: 12, // Weniger rund
           fontWeight: 600,
         },
       },
@@ -57,7 +57,7 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           '& .MuiOutlinedInput-root': {
-            borderRadius: 12,
+            borderRadius: 8,
           },
         },
       },
