@@ -7,7 +7,6 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      // Automatische Aktualisierung des Service Workers erzwingen
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
@@ -33,9 +32,7 @@ export default defineConfig({
         ]
       },
       workbox: {
-        // Sicherstellen, dass alle Assets gecacht werden
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        // Bereinigt alte Cache-Versionen sofort, um Icon-Aktualisierung zu begünstigen
         cleanupOutdatedCaches: true,
         runtimeCaching: [
           {

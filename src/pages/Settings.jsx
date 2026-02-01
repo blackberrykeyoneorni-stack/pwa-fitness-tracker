@@ -1,11 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Box, Typography, Paper, TextField, Button, FormControl,
-  InputLabel, Select, MenuItem, OutlinedInput, Chip, IconButton,
-  List, ListItem, ListItemText, ListItemSecondaryAction, Divider,
-  Snackbar, Alert, Checkbox, FormControlLabel
+  Box,
+  Typography,
+  Paper,
+  TextField,
+  Button,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  OutlinedInput,
+  Chip,
+  IconButton,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  Divider,
+  Snackbar,
+  Alert,
+  Checkbox,
+  FormControlLabel
 } from '@mui/material';
-import { Delete as DeleteIcon, Add as AddIcon, Edit as EditIcon, Save as SaveIcon } from '@mui/icons-material';
+import { 
+  Delete as DeleteIcon, 
+  Add as AddIcon, 
+  Edit as EditIcon, 
+  Save as SaveIcon 
+} from '@mui/icons-material';
 import { db, WEEKDAYS } from '../db';
 import { exportData, exportCSV } from '../utils/exportManager';
 
@@ -21,14 +43,18 @@ const Settings = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      const allEx = await db.exercises.toArray();
-      setExercises(allEx);
+      try {
+        const allEx = await db.exercises.toArray();
+        setExercises(allEx);
+      } catch (error) {
+        console.error("Fehler beim Laden der Übungen:", error);
+      }
     };
     loadData();
   }, []);
 
   const handleAddExercise = async () => {
-    if (!newEx.name || newEx.days.length === 0) {
+    if (!newEx.name || !newEx.days || newEx.days.length === 0) {
       setStatus({ open: true, message: 'Name und Trainingstage erforderlich!', severity: 'error' });
       return;
     }
@@ -44,12 +70,16 @@ const Settings = () => {
   };
 
   const handleUpdateExercise = async () => {
-    if (!newEx.name || newEx.days.length === 0) return;
-    await db.exercises.update(editId, newEx);
-    const allEx = await db.exercises.toArray();
-    setExercises(allEx);
-    resetForm();
-    setStatus({ open: true, message: 'Übung aktualisiert!', severity: 'success' });
+    if (!newEx.name || !newEx.days || newEx.days.length === 0) return;
+    try {
+      await db.exercises.update(editId, newEx);
+      const allEx = await db.exercises.toArray();
+      setExercises(allEx);
+      resetForm();
+      setStatus({ open: true, message: 'Übung aktualisiert!', severity: 'success' });
+    } catch (error) {
+      setStatus({ open: true, message: 'Fehler beim Speichern!', severity: 'error' });
+    }
   };
 
   const resetForm = () => {
