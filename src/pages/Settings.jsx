@@ -47,7 +47,7 @@ const Settings = () => {
         const allEx = await db.exercises.toArray();
         setExercises(allEx);
       } catch (error) {
-        console.error("Fehler beim Laden der Übungen:", error);
+        console.error("Datenbankfehler beim Laden:", error);
       }
     };
     loadData();
@@ -106,7 +106,12 @@ const Settings = () => {
           {editId ? 'Übung bearbeiten' : 'Übungen Verwalten'}
         </Typography>
         <Box sx={{ display: 'grid', gap: 1, mb: 2 }}>
-          <TextField label="Name der Übung" value={newEx.name} onChange={(e) => setNewEx({ ...newEx, name: e.target.value })} size="small" />
+          <TextField 
+            label="Name der Übung" 
+            value={newEx.name} 
+            onChange={(e) => setNewEx({ ...newEx, name: e.target.value })} 
+            size="small" 
+          />
           
           <FormControl fullWidth size="small" margin="dense">
             <InputLabel>Trainingstage</InputLabel>

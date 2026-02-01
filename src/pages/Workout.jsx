@@ -13,7 +13,6 @@ const Workout = () => {
   const [dailyNote, setDailyNote] = useState('');
   const [showAll, setShowAll] = useState(false);
 
-  // Modal & Progression State
   const [selectedExercise, setSelectedExercise] = useState(null);
   const [currentSet, setCurrentSet] = useState(1);
   const [showTimer, setShowTimer] = useState(false);
@@ -69,13 +68,11 @@ const Workout = () => {
       setTimeLeft(selectedExercise.restTime);
       setShowTimer(true);
     } else {
-      // Letzter Satz beendet -> Progressions-Slider anzeigen
       setIsProgressionStep(true);
     }
   };
 
   const finishExercise = async () => {
-    // 1. Update das Zielgewicht/-zeit in der Übungs-Definition für das nächste Mal
     const newTarget = selectedExercise.isTime 
       ? (selectedExercise.targetTime || 0) + progressionDelta
       : (selectedExercise.targetWeight || 0) + progressionDelta;
@@ -84,13 +81,10 @@ const Workout = () => {
       [selectedExercise.isTime ? 'targetTime' : 'targetWeight']: newTarget
     });
 
-    // 2. Logge die Übung für heute
     await db.logs.add({ date: todayDate, exerciseId: selectedExercise.id });
     setCompletedExerciseIds(prev => new Set(prev).add(selectedExercise.id));
 
-    // 3. UI Reset
     handleCloseModal();
-    // Liste neu laden um Änderungen zu reflektieren
     const allExercises = await db.exercises.toArray();
     setExercises(allExercises);
   };
@@ -115,7 +109,6 @@ const Workout = () => {
 
   return (
     <Box sx={{ p: 2, pb: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
-      
       <Box sx={{ mb: 3, mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{todayDay}</Typography>
@@ -132,36 +125,30 @@ const Workout = () => {
       </Box>
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {filteredExercises.length === 0 ? (
-          <Typography sx={{ py: 4, textAlign: 'center', color: 'text.secondary' }}>
-            Keine Übungen für heute geplant.
-          </Typography>
-        ) : (
-          filteredExercises.map((ex) => {
-            const isCompleted = completedExerciseIds.has(ex.id);
-            return (
-              <Button
-                key={ex.id}
-                variant="contained"
-                disabled={isCompleted}
-                size="large"
-                onClick={() => handleExerciseClick(ex)}
-                sx={{
-                  py: 2.5, px: 3, borderRadius: 3, boxShadow: 3,
-                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left',
-                  bgcolor: isCompleted ? 'action.disabledBackground' : 'primary.main',
-                  '&.Mui-disabled': { bgcolor: 'rgba(255, 255, 255, 0.08)', color: 'text.disabled', boxShadow: 0 }
-                }}
-              >
-                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 0.5 }}>{ex.name}</Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9, fontWeight: 500 }}>
-                  {ex.sets} Sätze à {ex.isTime ? `${ex.targetTime}s` : `${ex.reps} Wdh.`}
-                  {ex.isWeight && ex.targetWeight ? ` • ${ex.targetWeight}kg` : ''}
-                </Typography>
-              </Button>
-            );
-          })
-        )}
+        {filteredExercises.map((ex) => {
+          const isCompleted = completedExerciseIds.has(ex.id);
+          return (
+            <Button
+              key={ex.id}
+              variant="contained"
+              disabled={isCompleted}
+              size="large"
+              onClick={() => handleExerciseClick(ex)}
+              sx={{
+                py: 2.5, px: 3, borderRadius: 3, boxShadow: 3,
+                display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left',
+                bgcolor: isCompleted ? 'action.disabledBackground' : 'primary.main',
+                '&.Mui-disabled': { bgcolor: 'rgba(255, 255, 255, 0.08)', color: 'text.disabled', boxShadow: 0 }
+              }}
+            >
+              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 0.5 }}>{ex.name}</Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9, fontWeight: 500 }}>
+                {ex.sets} Sätze à {ex.isTime ? `${ex.targetTime}s` : `${ex.reps} Wdh.`}
+                {ex.isWeight && ex.targetWeight ? ` • ${ex.targetWeight}kg` : ''}
+              </Typography>
+            </Button>
+          );
+        })}
       </Box>
 
       <TextField
@@ -197,12 +184,10 @@ const Workout = () => {
                       </Typography>
                     </Box>
                   </Box>
-                  
                   <Typography variant="h6" color="text.secondary">
                     Ziel: {selectedExercise.isTime ? `${selectedExercise.targetTime}s` : `${selectedExercise.reps} Wdh.`}
                     {selectedExercise.isWeight && selectedExercise.targetWeight ? ` @ ${selectedExercise.targetWeight}kg` : ''}
                   </Typography>
-
                   {showTimer && (
                     <Box sx={{ mt: 3, width: '100%' }}>
                       <LinearProgress variant="determinate" value={(timeLeft / selectedExercise.restTime) * 100} sx={{ height: 12, borderRadius: 6, mb: 1 }} />
@@ -214,37 +199,21 @@ const Workout = () => {
                 <Box sx={{ textAlign: 'center', my: 4 }}>
                   <TrendingUp color="primary" sx={{ fontSize: 48, mb: 2 }} />
                   <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold' }}>Progression wählen</Typography>
-                  <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-                    Wie war die Übung heute? Passe das Ziel für das nächste Mal an.
-                  </Typography>
-
-                  <Box sx={{ px: 3 }}>
-                    <Slider
-                      value={progressionDelta}
-                      min={selectedExercise.isTime ? -30 : -5}
-                      max={selectedExercise.isTime ? 60 : 15}
-                      step={selectedExercise.isTime ? 5 : 1}
-                      onChange={(e, val) => setProgressionDelta(val)}
-                      valueLabelDisplay="auto"
-                      marks
-                    />
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1, mb: 4 }}>
-                      <Typography variant="caption">Leichter</Typography>
-                      <Typography variant="h6" color="primary.main" sx={{ fontWeight: 'bold' }}>
-                        {progressionDelta > 0 ? `+${progressionDelta}` : progressionDelta} {selectedExercise.isTime ? 's' : 'kg'}
-                      </Typography>
-                      <Typography variant="caption">Schwerer</Typography>
-                    </Box>
-
-                    <Paper variant="outlined" sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
-                      <Typography variant="subtitle2">Nächstes Ziel:</Typography>
-                      <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                        {selectedExercise.isTime 
-                          ? `${(selectedExercise.targetTime || 0) + progressionDelta}s`
-                          : `${(selectedExercise.targetWeight || 0) + progressionDelta}kg`
-                        }
-                      </Typography>
-                    </Paper>
+                  <Slider
+                    value={progressionDelta}
+                    min={selectedExercise.isTime ? -30 : -5}
+                    max={selectedExercise.isTime ? 60 : 15}
+                    step={selectedExercise.isTime ? 5 : 1}
+                    onChange={(e, val) => setProgressionDelta(val)}
+                    valueLabelDisplay="auto"
+                    marks
+                  />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1, mb: 4 }}>
+                    <Typography variant="caption">Leichter</Typography>
+                    <Typography variant="h6" color="primary.main" sx={{ fontWeight: 'bold' }}>
+                      {progressionDelta > 0 ? `+${progressionDelta}` : progressionDelta} {selectedExercise.isTime ? 's' : 'kg'}
+                    </Typography>
+                    <Typography variant="caption">Schwerer</Typography>
                   </Box>
                 </Box>
               )}
