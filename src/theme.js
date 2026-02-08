@@ -4,7 +4,7 @@ const theme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: '#D0BCFF', // M3 Purple 80
+      main: '#479CA9', // M3 Purple 80
       contrastText: '#381E72',
     },
     secondary: {
