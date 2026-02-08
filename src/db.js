@@ -2,10 +2,10 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('FitnessTrackerDB');
 
-// Version 4: Konsolidiertes Schema für alle Funktionen inkl. Progression
-db.version(4).stores({
+// Version 5: Logs erweitert um Leistungsdaten (weight, time, sets, reps) für Historien-Tracking
+db.version(5).stores({
   exercises: '++id, name, days, targetSets, targetReps, targetWeight, restTime, isWeight, isTime, targetTime',
-  logs: '++id, date, exerciseId',
+  logs: '++id, date, exerciseId, weight, time, reps, sets',
   dailyNotes: 'date, note',
   settings: 'id, value'
 });

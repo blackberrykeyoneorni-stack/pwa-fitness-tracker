@@ -72,7 +72,23 @@ const Workout = () => {
     }
   };
 
+  const handleFinishEarly = () => {
+    setShowTimer(false);
+    setIsProgressionStep(true);
+  };
+
   const finishExercise = async () => {
+    // 1. Logge die Leistung (Werte VOR der Progression, also das, was heute geleistet wurde)
+    await db.logs.add({
+      date: todayDate,
+      exerciseId: selectedExercise.id,
+      weight: selectedExercise.isWeight ? (selectedExercise.targetWeight || 0) : null,
+      time: selectedExercise.isTime ? (selectedExercise.targetTime || 0) : null,
+      reps: selectedExercise.reps || 0,
+      sets: currentSet // Speichert wie viele Sätze tatsächlich gemacht wurden (relevant bei 'handleFinishEarly')
+    });
+
+    // 2. Berechne neues Ziel für das nächste Mal
     const newTarget = selectedExercise.isTime 
       ? (selectedExercise.targetTime || 0) + progressionDelta
       : (selectedExercise.targetWeight || 0) + progressionDelta;
@@ -81,7 +97,6 @@ const Workout = () => {
       [selectedExercise.isTime ? 'targetTime' : 'targetWeight']: newTarget
     });
 
-    await db.logs.add({ date: todayDate, exerciseId: selectedExercise.id });
     setCompletedExerciseIds(prev => new Set(prev).add(selectedExercise.id));
 
     handleCloseModal();
@@ -219,7 +234,7 @@ const Workout = () => {
               )}
             </DialogContent>
 
-            <DialogActions sx={{ p: 2 }}>
+            <DialogActions sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
               {!showTimer && !isProgressionStep && (
                 <Button 
                   fullWidth variant="contained" size="large" 
@@ -229,6 +244,17 @@ const Workout = () => {
                   {currentSet < selectedExercise.sets ? `Satz ${currentSet} abschließen` : "Übung beenden"}
                 </Button>
               )}
+              
+              {!isProgressionStep && currentSet < selectedExercise.sets && (
+                <Button 
+                  fullWidth variant="text" size="small"
+                  onClick={handleFinishEarly}
+                  sx={{ borderRadius: 2, color: 'text.secondary', fontWeight: 'bold' }}
+                >
+                  Vorzeitig beenden
+                </Button>
+              )}
+
               {isProgressionStep && (
                 <Button 
                   fullWidth variant="contained" size="large" 
