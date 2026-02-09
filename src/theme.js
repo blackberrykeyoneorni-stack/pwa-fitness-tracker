@@ -18,6 +18,10 @@ const md3Colors = {
     paper: '#1A1C23',      // Etwas hellerer Surface-Ton
     subtle: '#242930',     // Für Listen-Elemente / Cards
   },
+  text: {                  // <--- HIER WAR DER FEHLER: Diese Definition fehlte
+    primary: '#E2E2E6',
+    secondary: '#C4C6D0',
+  },
   error: {
     main: '#FFB4AB',
     container: '#93000A',
@@ -38,10 +42,7 @@ const theme = createTheme({
       default: md3Colors.background.default,
       paper: md3Colors.background.paper,
     },
-    text: {
-      primary: '#E2E2E6',
-      secondary: '#C4C6D0',
-    },
+    text: md3Colors.text, // Greift jetzt sauber auf das Objekt zu
     // MD3 spezifische Action Colors
     action: {
       active: '#C4C6D0',
@@ -159,7 +160,7 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           backgroundColor: md3Colors.background.default, // Transparent/Surface
-          color: md3Colors.text.primary,
+          color: md3Colors.text.primary, // <--- Funktioniert jetzt
           boxShadow: 'none',
           borderBottom: '1px solid rgba(255,255,255,0.05)',
         },
