@@ -1,24 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Button, TextField, Dialog, DialogTitle,
-  DialogContent, DialogActions, LinearProgress, IconButton, Slider
+  DialogContent, DialogActions, LinearProgress, IconButton, Slider, Chip, Alert, AlertTitle
 } from '@mui/material';
-import { Close as CloseIcon, SkipNext, FilterList, TrendingUp } from '@mui/icons-material';
+import { Close as CloseIcon, SkipNext, FilterList, TrendingUp, Speed, Whatshot, BatteryAlert } from '@mui/icons-material';
 import { db } from '../db';
+import { useTheme } from '@mui/material/styles';
 
 const Workout = () => {
+  const theme = useTheme();
   const [exercises, setExercises] = useState([]);
   const [filteredExercises, setFilteredExercises] = useState([]);
   const [completedExerciseIds, setCompletedExerciseIds] = useState(new Set());
   const [dailyNote, setDailyNote] = useState('');
   const [showAll, setShowAll] = useState(false);
 
+  // Workout State
   const [selectedExercise, setSelectedExercise] = useState(null);
   const [currentSet, setCurrentSet] = useState(1);
   const [showTimer, setShowTimer] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
+  
+  // Progression & RPE Logic
   const [isProgressionStep, setIsProgressionStep] = useState(false);
   const [progressionDelta, setProgressionDelta] = useState(0);
+  const [rpe, setRpe] = useState(8); 
+
+  // --- NEU: Coach / Scenario Logic ---
+  const [coachRecommendation, setCoachRecommendation] = useState(null); // { type: 'aggressive' | 'burnout' | 'normal', message: string, delta: number }
 
   const todayDate = new Date().toISOString().split('T')[0];
   const todayDay = new Date().toLocaleDateString('de-DE', { weekday: 'long' });
@@ -56,6 +65,79 @@ const Workout = () => {
     return () => clearInterval(timer);
   }, [showTimer, timeLeft]);
 
+  // --- LIVE RPE LOGIC (während des Anpassens am Ende) ---
+  useEffect(() => {
+    if (!selectedExercise || !isProgressionStep) return;
+
+    // Nur neu berechnen, wenn wir KEINE strikte Coach-Empfehlung haben oder der User manuell eingreift
+    // Hier vereinfachen wir: Der Slider steuert immer, aber wir starten mit einem schlauen Default.
+    
+    const baseStep = selectedExercise.isTime ? 5 : 2.5;
+    let suggestedDelta = 0;
+
+    if (rpe <= 6) suggestedDelta = baseStep * 2;      // Zu leicht -> Doppelt
+    else if (rpe <= 9) suggestedDelta = baseStep;     // Normal -> Standard
+    else suggestedDelta = 0;                          // Limit -> Erhalt
+
+    setProgressionDelta(suggestedDelta);
+  }, [rpe, isProgressionStep, selectedExercise]);
+
+
+  // --- DIE INTELLIGENTE ANALYSE (Beim Öffnen) ---
+  const analyzeHistoryAndSuggest = async (exercise) => {
+    // 1. Hole Historie (letzte 5 Logs dieser Übung)
+    const history = await db.logs
+      .where('exerciseId').equals(exercise.id)
+      .reverse() // Neueste zuerst
+      .limit(5)
+      .toArray();
+
+    if (history.length === 0) {
+      setCoachRecommendation(null);
+      return;
+    }
+
+    const lastLog = history[0];
+    const baseStep = exercise.isTime ? 5 : 2.5;
+
+    // --- SZENARIO B: BURNOUT PROTECTION ---
+    // Logik: Letzte 3 Trainings waren RPE >= 9 (Sehr hart/Limit)
+    if (history.length >= 3) {
+      const recentStrain = history.slice(0, 3);
+      const isBurnoutRisk = recentStrain.every(log => (log.rpe || 0) >= 9);
+
+      if (isBurnoutRisk) {
+        // Empfehlung: Deload (Gewicht reduzieren)
+        const deloadAmount = exercise.isWeight 
+          ? -Math.round((exercise.targetWeight || 0) * 0.1) // -10% Gewicht
+          : -10; // -10 Sekunden
+        
+        setCoachRecommendation({
+          type: 'burnout',
+          title: 'Hohe Belastung erkannt',
+          message: 'Deine letzten 3 Einheiten waren am Limit. Der Coach empfiehlt heute einen Deload (-10%), um das ZNS zu regenerieren.',
+          delta: deloadAmount
+        });
+        return;
+      }
+    }
+
+    // --- SZENARIO A: AGGRESSIVE OVERLOAD ---
+    // Logik: Letztes Training war RPE <= 6 (Zu leicht)
+    if ((lastLog.rpe || 0) <= 6 && lastLog.rpe > 0) {
+      setCoachRecommendation({
+        type: 'aggressive',
+        title: 'Potenzial erkannt',
+        message: 'Das letzte Training war sehr leicht (RPE ≤ 6). Der Coach empfiehlt heute eine doppelte Steigerung.',
+        delta: baseStep * 2
+      });
+      return;
+    }
+
+    setCoachRecommendation(null);
+  };
+
+
   const handleTimerComplete = () => {
     setShowTimer(false);
     if (currentSet < selectedExercise.sets) {
@@ -69,26 +151,39 @@ const Workout = () => {
       setShowTimer(true);
     } else {
       setIsProgressionStep(true);
+      setRpe(8); // Reset RPE für Bewertung
     }
   };
 
   const handleFinishEarly = () => {
     setShowTimer(false);
     setIsProgressionStep(true);
+    setRpe(8);
   };
 
   const finishExercise = async () => {
-    // 1. Logge die Leistung (Werte VOR der Progression, also das, was heute geleistet wurde)
+    // Wenn es eine Coach-Empfehlung gab (z.B. Deload), wenden wir diese an?
+    // Nein, wir wenden an, was im `progressionDelta` steht.
+    // Aber: Wenn wir VOR dem Start schon wissen, dass wir Deloaden, 
+    // dann hätte man das Zielgewicht VORHER ändern müssen.
+    // Da wir das Gewicht erst AM ENDE anpassen (fürs nächste Mal), 
+    // wirkt die "Burnout"-Logik hier eher für "Nächstes Mal".
+    
+    // KORREKTUR DER LOGIK:
+    // Der User trainiert HEUTE mit dem Gewicht, das in der Liste steht.
+    // Die Progression, die wir hier berechnen, ist für MORGEN.
+    
+    // Speichern
     await db.logs.add({
       date: todayDate,
       exerciseId: selectedExercise.id,
       weight: selectedExercise.isWeight ? (selectedExercise.targetWeight || 0) : null,
       time: selectedExercise.isTime ? (selectedExercise.targetTime || 0) : null,
       reps: selectedExercise.reps || 0,
-      sets: currentSet // Speichert wie viele Sätze tatsächlich gemacht wurden (relevant bei 'handleFinishEarly')
+      sets: currentSet,
+      rpe: rpe
     });
 
-    // 2. Berechne neues Ziel für das nächste Mal
     const newTarget = selectedExercise.isTime 
       ? (selectedExercise.targetTime || 0) + progressionDelta
       : (selectedExercise.targetWeight || 0) + progressionDelta;
@@ -98,7 +193,6 @@ const Workout = () => {
     });
 
     setCompletedExerciseIds(prev => new Set(prev).add(selectedExercise.id));
-
     handleCloseModal();
     const allExercises = await db.exercises.toArray();
     setExercises(allExercises);
@@ -110,16 +204,35 @@ const Workout = () => {
     setShowTimer(false);
     setIsProgressionStep(false);
     setProgressionDelta(0);
+    setRpe(8);
+    
+    // Historie checken für Empfehlungen
+    analyzeHistoryAndSuggest(ex);
   };
 
   const handleCloseModal = () => {
     setSelectedExercise(null);
     setShowTimer(false);
     setIsProgressionStep(false);
+    setCoachRecommendation(null);
   };
 
   const handleSaveNote = async () => {
     await db.dailyNotes.put({ date: todayDate, note: dailyNote });
+  };
+
+  const getRpeColor = (val) => {
+    if (val <= 6) return theme.palette.success.main; 
+    if (val <= 8.5) return theme.palette.warning.main; 
+    return theme.palette.error.main; 
+  };
+
+  const getRpeLabel = (val) => {
+    if (val <= 6) return "Leicht (Warmup)";
+    if (val <= 7) return "Moderat (3 RIR)";
+    if (val <= 8) return "Hart (2 RIR)";
+    if (val <= 9) return "Sehr Hart (1 RIR)";
+    return "Limit (Failure)";
   };
 
   return (
@@ -185,6 +298,18 @@ const Workout = () => {
             </DialogTitle>
             
             <DialogContent>
+              {/* --- COACH EMPFEHLUNG (Vor dem Training) --- */}
+              {!isProgressionStep && coachRecommendation && (
+                <Alert 
+                  severity={coachRecommendation.type === 'burnout' ? 'error' : 'info'} 
+                  icon={coachRecommendation.type === 'burnout' ? <BatteryAlert fontSize="inherit" /> : <Whatshot fontSize="inherit" />}
+                  sx={{ mb: 2, borderRadius: 2 }}
+                >
+                  <AlertTitle sx={{ fontWeight: 'bold' }}>{coachRecommendation.title}</AlertTitle>
+                  {coachRecommendation.message}
+                </Alert>
+              )}
+
               {!isProgressionStep ? (
                 <Box sx={{ textAlign: 'center', my: 2 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
@@ -211,25 +336,73 @@ const Workout = () => {
                   )}
                 </Box>
               ) : (
-                <Box sx={{ textAlign: 'center', my: 4 }}>
-                  <TrendingUp color="primary" sx={{ fontSize: 48, mb: 2 }} />
-                  <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold' }}>Progression wählen</Typography>
-                  <Slider
-                    value={progressionDelta}
-                    min={selectedExercise.isTime ? -30 : -5}
-                    max={selectedExercise.isTime ? 60 : 15}
-                    step={selectedExercise.isTime ? 5 : 1}
-                    onChange={(e, val) => setProgressionDelta(val)}
-                    valueLabelDisplay="auto"
-                    marks
-                  />
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1, mb: 4 }}>
-                    <Typography variant="caption">Leichter</Typography>
-                    <Typography variant="h6" color="primary.main" sx={{ fontWeight: 'bold' }}>
-                      {progressionDelta > 0 ? `+${progressionDelta}` : progressionDelta} {selectedExercise.isTime ? 's' : 'kg'}
+                <Box sx={{ textAlign: 'center', my: 2 }}>
+                  
+                  {/* --- RPE SLIDER --- */}
+                  <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                    <Speed fontSize="small" /> Intensität (RPE)
+                  </Typography>
+                  
+                  <Box sx={{ px: 2, mb: 4 }}>
+                    <Slider
+                      value={rpe}
+                      min={5}
+                      max={10}
+                      step={0.5}
+                      onChange={(e, val) => setRpe(val)}
+                      valueLabelDisplay="on"
+                      track={false}
+                      sx={{
+                        height: 8,
+                        '& .MuiSlider-thumb': {
+                          width: 24, height: 24,
+                          backgroundColor: getRpeColor(rpe),
+                          border: '2px solid #fff'
+                        },
+                        '& .MuiSlider-valueLabel': {
+                          bgcolor: getRpeColor(rpe),
+                        }
+                      }}
+                    />
+                    <Typography variant="caption" sx={{ color: getRpeColor(rpe), fontWeight: 'bold', mt: 1, display: 'block' }}>
+                      {getRpeLabel(rpe)}
                     </Typography>
-                    <Typography variant="caption">Schwerer</Typography>
                   </Box>
+
+                  <Divider sx={{ my: 3 }} />
+
+                  {/* --- PROGRESSION SLIDER --- */}
+                  <TrendingUp color="primary" sx={{ fontSize: 32, mb: 1 }} />
+                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+                    {progressionDelta > 0 ? "Empfohlene Steigerung" : "Anpassung"}
+                  </Typography>
+                  
+                  <Box sx={{ px: 2 }}>
+                    <Slider
+                      value={progressionDelta}
+                      min={selectedExercise.isTime ? -30 : -5}
+                      max={selectedExercise.isTime ? 60 : 15}
+                      step={selectedExercise.isTime ? 5 : 1.25} 
+                      onChange={(e, val) => setProgressionDelta(val)}
+                      valueLabelDisplay="auto"
+                      marks
+                    />
+                  </Box>
+
+                  <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2, mb: 1 }}>
+                    <Chip 
+                      label={`${progressionDelta > 0 ? '+' : ''}${progressionDelta} ${selectedExercise.isTime ? 's' : 'kg'}`} 
+                      color="primary" 
+                      variant="outlined" 
+                      sx={{ fontWeight: 'bold', fontSize: '1.1rem', py: 2, px: 1, borderRadius: 2 }} 
+                    />
+                  </Box>
+                  <Typography variant="caption" color="text.secondary">
+                    Neues Ziel: {selectedExercise.isTime 
+                      ? (selectedExercise.targetTime + progressionDelta) + 's' 
+                      : (selectedExercise.targetWeight + progressionDelta) + 'kg'}
+                  </Typography>
+
                 </Box>
               )}
             </DialogContent>
@@ -271,5 +444,8 @@ const Workout = () => {
     </Box>
   );
 };
+
+// Hilfskomponente
+const Divider = ({ sx }) => <Box sx={{ height: '1px', bgcolor: 'divider', width: '100%', ...sx }} />;
 
 export default Workout;
