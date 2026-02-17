@@ -3,7 +3,7 @@ import {
   Box, Typography, Button, TextField, Dialog, DialogTitle,
   DialogContent, DialogActions, LinearProgress, IconButton, Slider, Chip, Alert, AlertTitle
 } from '@mui/material';
-import { Close as CloseIcon, SkipNext, FilterList, TrendingUp, Speed, Whatshot, BatteryAlert } from '@mui/icons-material';
+import { Close as CloseIcon, SkipNext, FilterList, TrendingUp, Speed, Whatshot, BatteryAlert, PlayArrow, Stop } from '@mui/icons-material';
 import { db } from '../db';
 import { useTheme } from '@mui/material/styles';
 
@@ -18,16 +18,17 @@ const Workout = () => {
   // Workout State
   const [selectedExercise, setSelectedExercise] = useState(null);
   const [currentSet, setCurrentSet] = useState(1);
-  const [showTimer, setShowTimer] = useState(false);
+  
+  // --- NEU: Dual-Timer State Machine ---
+  const [timerMode, setTimerMode] = useState('idle'); // 'idle', 'work', 'rest'
   const [timeLeft, setTimeLeft] = useState(0);
+  const [actualTimeDone, setActualTimeDone] = useState(0);
   
   // Progression & RPE Logic
   const [isProgressionStep, setIsProgressionStep] = useState(false);
   const [progressionDelta, setProgressionDelta] = useState(0);
   const [rpe, setRpe] = useState(8); 
-
-  // --- NEU: Coach / Scenario Logic ---
-  const [coachRecommendation, setCoachRecommendation] = useState(null); // { type: 'aggressive' | 'burnout' | 'normal', message: string, delta: number }
+  const [coachRecommendation, setCoachRecommendation] = useState(null);
 
   const todayDate = new Date().toISOString().split('T')[0];
   const todayDay = new Date().toLocaleDateString('de-DE', { weekday: 'long' });
@@ -55,40 +56,34 @@ const Workout = () => {
     }
   }, [exercises, showAll, todayDay]);
 
+  // --- TIMER ENGINE ---
   useEffect(() => {
     let timer;
-    if (showTimer && timeLeft > 0) {
+    if (timerMode !== 'idle' && timeLeft > 0) {
       timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
-    } else if (timeLeft === 0 && showTimer) {
+    } else if (timeLeft === 0 && timerMode !== 'idle') {
       handleTimerComplete();
     }
     return () => clearInterval(timer);
-  }, [showTimer, timeLeft]);
+  }, [timerMode, timeLeft]);
 
-  // --- LIVE RPE LOGIC (während des Anpassens am Ende) ---
   useEffect(() => {
     if (!selectedExercise || !isProgressionStep) return;
-
-    // Nur neu berechnen, wenn wir KEINE strikte Coach-Empfehlung haben oder der User manuell eingreift
-    // Hier vereinfachen wir: Der Slider steuert immer, aber wir starten mit einem schlauen Default.
-    
     const baseStep = selectedExercise.isTime ? 5 : 2.5;
     let suggestedDelta = 0;
 
-    if (rpe <= 6) suggestedDelta = baseStep * 2;      // Zu leicht -> Doppelt
-    else if (rpe <= 9) suggestedDelta = baseStep;     // Normal -> Standard
-    else suggestedDelta = 0;                          // Limit -> Erhalt
+    if (rpe <= 6) suggestedDelta = baseStep * 2;     
+    else if (rpe <= 9) suggestedDelta = baseStep;     
+    else suggestedDelta = 0;                          
 
     setProgressionDelta(suggestedDelta);
   }, [rpe, isProgressionStep, selectedExercise]);
 
 
-  // --- DIE INTELLIGENTE ANALYSE (Beim Öffnen) ---
   const analyzeHistoryAndSuggest = async (exercise) => {
-    // 1. Hole Historie (letzte 5 Logs dieser Übung)
     const history = await db.logs
       .where('exerciseId').equals(exercise.id)
-      .reverse() // Neueste zuerst
+      .reverse()
       .limit(5)
       .toArray();
 
@@ -100,17 +95,14 @@ const Workout = () => {
     const lastLog = history[0];
     const baseStep = exercise.isTime ? 5 : 2.5;
 
-    // --- SZENARIO B: BURNOUT PROTECTION ---
-    // Logik: Letzte 3 Trainings waren RPE >= 9 (Sehr hart/Limit)
     if (history.length >= 3) {
       const recentStrain = history.slice(0, 3);
       const isBurnoutRisk = recentStrain.every(log => (log.rpe || 0) >= 9);
 
       if (isBurnoutRisk) {
-        // Empfehlung: Deload (Gewicht reduzieren)
         const deloadAmount = exercise.isWeight 
-          ? -Math.round((exercise.targetWeight || 0) * 0.1) // -10% Gewicht
-          : -10; // -10 Sekunden
+          ? -Math.round((exercise.targetWeight || 0) * 0.1) 
+          : -10; 
         
         setCoachRecommendation({
           type: 'burnout',
@@ -122,8 +114,6 @@ const Workout = () => {
       }
     }
 
-    // --- SZENARIO A: AGGRESSIVE OVERLOAD ---
-    // Logik: Letztes Training war RPE <= 6 (Zu leicht)
     if ((lastLog.rpe || 0) <= 6 && lastLog.rpe > 0) {
       setCoachRecommendation({
         type: 'aggressive',
@@ -137,48 +127,56 @@ const Workout = () => {
     setCoachRecommendation(null);
   };
 
+  // --- WORKOUT STATE LOGIC ---
+  const finishSetAndMoveOn = () => {
+    if (currentSet < selectedExercise.sets) {
+      setTimerMode('rest');
+      setTimeLeft(selectedExercise.restTime);
+    } else {
+      setTimerMode('idle');
+      setIsProgressionStep(true);
+      setRpe(8);
+    }
+  };
 
   const handleTimerComplete = () => {
-    setShowTimer(false);
-    if (currentSet < selectedExercise.sets) {
+    if (timerMode === 'work') {
+      setActualTimeDone(selectedExercise.targetTime);
+      finishSetAndMoveOn();
+    } else if (timerMode === 'rest') {
+      setTimerMode('idle');
       setCurrentSet(prev => prev + 1);
     }
   };
 
   const handleNextStep = () => {
-    if (currentSet < selectedExercise.sets) {
-      setTimeLeft(selectedExercise.restTime);
-      setShowTimer(true);
+    if (selectedExercise.isTime) {
+      setTimerMode('work');
+      setTimeLeft(selectedExercise.targetTime);
+      setActualTimeDone(0); // Reset für diesen Satz
     } else {
-      setIsProgressionStep(true);
-      setRpe(8); // Reset RPE für Bewertung
+      finishSetAndMoveOn();
     }
   };
 
+  const handleStopWork = () => {
+    const done = selectedExercise.targetTime - timeLeft;
+    setActualTimeDone(done > 0 ? done : 0);
+    finishSetAndMoveOn();
+  };
+
   const handleFinishEarly = () => {
-    setShowTimer(false);
+    setTimerMode('idle');
     setIsProgressionStep(true);
     setRpe(8);
   };
 
   const finishExercise = async () => {
-    // Wenn es eine Coach-Empfehlung gab (z.B. Deload), wenden wir diese an?
-    // Nein, wir wenden an, was im `progressionDelta` steht.
-    // Aber: Wenn wir VOR dem Start schon wissen, dass wir Deloaden, 
-    // dann hätte man das Zielgewicht VORHER ändern müssen.
-    // Da wir das Gewicht erst AM ENDE anpassen (fürs nächste Mal), 
-    // wirkt die "Burnout"-Logik hier eher für "Nächstes Mal".
-    
-    // KORREKTUR DER LOGIK:
-    // Der User trainiert HEUTE mit dem Gewicht, das in der Liste steht.
-    // Die Progression, die wir hier berechnen, ist für MORGEN.
-    
-    // Speichern
     await db.logs.add({
       date: todayDate,
       exerciseId: selectedExercise.id,
       weight: selectedExercise.isWeight ? (selectedExercise.targetWeight || 0) : null,
-      time: selectedExercise.isTime ? (selectedExercise.targetTime || 0) : null,
+      time: selectedExercise.isTime ? (actualTimeDone > 0 ? actualTimeDone : (selectedExercise.targetTime || 0)) : null,
       reps: selectedExercise.reps || 0,
       sets: currentSet,
       rpe: rpe
@@ -201,18 +199,17 @@ const Workout = () => {
   const handleExerciseClick = (ex) => {
     setSelectedExercise(ex);
     setCurrentSet(1);
-    setShowTimer(false);
+    setTimerMode('idle');
     setIsProgressionStep(false);
     setProgressionDelta(0);
     setRpe(8);
-    
-    // Historie checken für Empfehlungen
+    setActualTimeDone(0);
     analyzeHistoryAndSuggest(ex);
   };
 
   const handleCloseModal = () => {
     setSelectedExercise(null);
-    setShowTimer(false);
+    setTimerMode('idle');
     setIsProgressionStep(false);
     setCoachRecommendation(null);
   };
@@ -298,8 +295,7 @@ const Workout = () => {
             </DialogTitle>
             
             <DialogContent>
-              {/* --- COACH EMPFEHLUNG (Vor dem Training) --- */}
-              {!isProgressionStep && coachRecommendation && (
+              {!isProgressionStep && coachRecommendation && timerMode === 'idle' && currentSet === 1 && (
                 <Alert 
                   severity={coachRecommendation.type === 'burnout' ? 'error' : 'info'} 
                   icon={coachRecommendation.type === 'burnout' ? <BatteryAlert fontSize="inherit" /> : <Whatshot fontSize="inherit" />}
@@ -313,14 +309,21 @@ const Workout = () => {
               {!isProgressionStep ? (
                 <Box sx={{ textAlign: 'center', my: 2 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
+                    {/* --- VISUALISIERUNG: DUAL TIMER --- */}
                     <Box sx={{
                       p: 4, borderRadius: '50%', textAlign: 'center', width: 140, height: 140,
                       display: 'flex', flexDirection: 'column', justifyContent: 'center',
-                      border: '6px solid', borderColor: showTimer ? 'secondary.main' : 'primary.main', bgcolor: 'background.default'
+                      border: '6px solid', 
+                      borderColor: timerMode === 'work' ? 'primary.light' : (timerMode === 'rest' ? 'secondary.main' : 'primary.main'), 
+                      bgcolor: timerMode === 'work' ? 'primary.main' : 'background.default',
+                      color: timerMode === 'work' ? 'primary.contrastText' : 'text.primary',
+                      transition: 'all 0.3s ease'
                     }}>
-                      <Typography variant="h3" sx={{ fontWeight: 'bold' }}>{showTimer ? timeLeft : currentSet}</Typography>
-                      <Typography variant="caption" sx={{ fontSize: '0.8rem', fontWeight: 'bold' }}>
-                        {showTimer ? 'PAUSE' : `SATZ / ${selectedExercise.sets}`}
+                      <Typography variant="h3" sx={{ fontWeight: 'bold' }}>
+                        {timerMode !== 'idle' ? timeLeft : currentSet}
+                      </Typography>
+                      <Typography variant="caption" sx={{ fontSize: '0.8rem', fontWeight: 'bold', opacity: 0.9 }}>
+                        {timerMode === 'work' ? 'ARBEIT' : timerMode === 'rest' ? 'PAUSE' : `SATZ / ${selectedExercise.sets}`}
                       </Typography>
                     </Box>
                   </Box>
@@ -328,10 +331,24 @@ const Workout = () => {
                     Ziel: {selectedExercise.isTime ? `${selectedExercise.targetTime}s` : `${selectedExercise.reps} Wdh.`}
                     {selectedExercise.isWeight && selectedExercise.targetWeight ? ` @ ${selectedExercise.targetWeight}kg` : ''}
                   </Typography>
-                  {showTimer && (
+                  
+                  {timerMode !== 'idle' && (
                     <Box sx={{ mt: 3, width: '100%' }}>
-                      <LinearProgress variant="determinate" value={(timeLeft / selectedExercise.restTime) * 100} sx={{ height: 12, borderRadius: 6, mb: 1 }} />
-                      <Button fullWidth variant="outlined" startIcon={<SkipNext />} onClick={() => setTimeLeft(0)} sx={{ mt: 1 }}>Pause überspringen</Button>
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={
+                          timerMode === 'work' 
+                            ? (timeLeft / selectedExercise.targetTime) * 100 
+                            : (timeLeft / selectedExercise.restTime) * 100
+                        } 
+                        sx={{ 
+                          height: 12, borderRadius: 6, mb: 1,
+                          bgcolor: 'rgba(255,255,255,0.1)',
+                          '& .MuiLinearProgress-bar': {
+                             bgcolor: timerMode === 'work' ? 'primary.main' : 'secondary.main'
+                          }
+                        }} 
+                      />
                     </Box>
                   )}
                 </Box>
@@ -408,26 +425,37 @@ const Workout = () => {
             </DialogContent>
 
             <DialogActions sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {!showTimer && !isProgressionStep && (
-                <Button 
-                  fullWidth variant="contained" size="large" 
-                  onClick={handleNextStep} 
-                  sx={{ py: 2, borderRadius: 2, fontWeight: 'bold' }}
-                >
-                  {currentSet < selectedExercise.sets ? `Satz ${currentSet} abschließen` : "Übung beenden"}
-                </Button>
-              )}
               
-              {!isProgressionStep && currentSet < selectedExercise.sets && (
-                <Button 
-                  fullWidth variant="text" size="small"
-                  onClick={handleFinishEarly}
-                  sx={{ borderRadius: 2, color: 'text.secondary', fontWeight: 'bold' }}
-                >
-                  Vorzeitig beenden
-                </Button>
+              {/* --- AKTIONEN WÄHREND DER ÜBUNG --- */}
+              {!isProgressionStep && (
+                <>
+                  {timerMode === 'idle' && (
+                    <Button fullWidth variant="contained" size="large" onClick={handleNextStep} startIcon={selectedExercise.isTime ? <PlayArrow /> : null} sx={{ py: 2, borderRadius: 2, fontWeight: 'bold' }}>
+                      {selectedExercise.isTime ? `Timer für Satz ${currentSet} starten` : `Satz ${currentSet} abschließen`}
+                    </Button>
+                  )}
+
+                  {timerMode === 'work' && (
+                    <Button fullWidth variant="contained" color="warning" size="large" onClick={handleStopWork} startIcon={<Stop />} sx={{ py: 2, borderRadius: 2, fontWeight: 'bold' }}>
+                      Arbeitssatz beenden
+                    </Button>
+                  )}
+
+                  {timerMode === 'rest' && (
+                    <Button fullWidth variant="outlined" size="large" onClick={() => setTimeLeft(0)} startIcon={<SkipNext />} sx={{ py: 2, borderRadius: 2, fontWeight: 'bold' }}>
+                      Pause überspringen
+                    </Button>
+                  )}
+                  
+                  {timerMode !== 'rest' && currentSet < selectedExercise.sets && (
+                    <Button fullWidth variant="text" size="small" onClick={handleFinishEarly} sx={{ mt: 1, borderRadius: 2, color: 'text.secondary', fontWeight: 'bold' }}>
+                      Übung vorzeitig beenden
+                    </Button>
+                  )}
+                </>
               )}
 
+              {/* --- AKTIONEN IM PROGRESSIONSSCHRITT --- */}
               {isProgressionStep && (
                 <Button 
                   fullWidth variant="contained" size="large" 
@@ -445,7 +473,6 @@ const Workout = () => {
   );
 };
 
-// Hilfskomponente
 const Divider = ({ sx }) => <Box sx={{ height: '1px', bgcolor: 'divider', width: '100%', ...sx }} />;
 
 export default Workout;
